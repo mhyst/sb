@@ -68,24 +68,6 @@ function loadChapters() {
 	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie"
 }
 
-function loadChapter() {
-	local url=$1
-
-	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
-
-	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
-	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
-}
-
-function loadChapter2() {
-	local url=$1
-
-	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
-
-	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
-	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
-}
-
 function getLink() {
 	local enlace=$1
 
