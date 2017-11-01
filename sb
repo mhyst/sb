@@ -58,7 +58,7 @@ function parseService() {
 	local text=$1
 
 	#grep -Po '/servidores/".*?.jpg"' <<< $text | sed 's/\(/servidores//"\|.jpg"\)//g'
-	grep -Po "src='/servidores/.*?.jpg'" <<< $text | sed "s/\(src='\/servidores\/\|.jpg'\)//g"
+	grep -Po "src='/servidores/.*?'" <<< $text | sed "s/\(src='\/servidores\/\|'\)//g"
 }
 
 function searchSeries() {
@@ -81,13 +81,21 @@ function loadChapters() {
 	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie"
 }
 
-function loadChapter() {
+function loadChapterLinks() {
 	local url=$1
 
 	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
 
-	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt
+	grep -Po '<a href="/enlace.*?" target="_blank">' /tmp/paso2.txt
 	#grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
+}
+
+function loadChapterServices() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	grep -Po "src='/servidores.*?' width='80'" /tmp/paso2.txt
 }
 
 function getLink() {
@@ -168,25 +176,36 @@ echo
 #echo ${y[$CHOSENID]}
 #echo "El elegido es: ${y[$CHOSENID]}"
 
-CHAPTER=$(loadChapter "${y[$CHOSENID]}")
+CHAPTERLINKS=$(loadChapterLinks "${y[$CHOSENID]}")
+CHAPTERSERVICES=$(loadChapterServices "${y[$CHOSENID]}")
+
 
 unset y
 
-if [[ $CHAPTER = "" ]]; then
+if [[ $CHAPTERLINKS = "" ]]; then
 	echo "No se han encontrado enlaces para el episodio seleccionado"
 	exit
 fi
 
+if [[ $CHAPTERSERVICES = "" ]]; then
+	echo "No se han encontrado enlaces para el episodio seleccionado"
+	exit
+fi
 #Dividir series por nueva línea
-readarray -t y <<<"$CHAPTER"
+readarray -t y <<<"$CHAPTERLINKS"
+readarray -t x <<<"$CHAPTERSERVICES"
 
-#echo "$CHAPTER"
+if [[ "${#y[*]}" != "${#x[*]}" ]]; then
+	echo "El número de enlaces no se corresponde con el número de servicios"
+	echo "y contiene ${#y[*]} mientras que x contiene ${#x[*]}"
+	exit
+fi
 
 #Recorrer el array resultante "y"
 let i=0
 for t in "${y[@]}"; do
 	mylink=$(parseLink "$t")
-	myservice=$(parseService "$t")
+	myservice=$(parseService "${x[i]}")
 	echo "$i: $mylink / $myservice"
 	((i++))
 done
