@@ -48,6 +48,19 @@ function getSerie() {
 	echo $serie
 }
 
+function parseLink() {
+	local text=$1
+
+	grep -Po 'href=".*?"' <<< $text | sed 's/\(href="\|"\)//g'
+}
+
+function parseService() {
+	local text=$1
+
+	#grep -Po '/servidores/".*?.jpg"' <<< $text | sed 's/\(/servidores//"\|.jpg"\)//g'
+	grep -Po "src='/servidores/.*?.jpg'" <<< $text | sed "s/\(src='\/servidores\/\|.jpg'\)//g"
+}
+
 function searchSeries() {
 
 	#echo "$@"
@@ -73,18 +86,9 @@ function loadChapter() {
 
 	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
 
-	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
-	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
+	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt
+	#grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
 }
-
-function loadChapter2() {
-	local url=$1
-
-	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
-
-	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
-	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
-
 
 function getLink() {
 	local enlace=$1
@@ -176,10 +180,14 @@ fi
 #Dividir series por nueva línea
 readarray -t y <<<"$CHAPTER"
 
+#echo "$CHAPTER"
+
 #Recorrer el array resultante "y"
 let i=0
 for t in "${y[@]}"; do
-	echo "$i: $t"
+	mylink=$(parseLink "$t")
+	myservice=$(parseService "$t")
+	echo "$i: $mylink / $myservice"
 	((i++))
 done
 
@@ -189,7 +197,7 @@ CHOSENID=$(userChoice $LIMITE)
 #echo ${y[$CHOSENID]}
 #echo "El elegido es: ${y[$CHOSENID]}"
 
-LINK=$(getLink "${y[$CHOSENID]}")
+LINK=$(getLink $(parseLink "${y[$CHOSENID]}"))
 
 unset y
 
