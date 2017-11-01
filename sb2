@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [[ $1 = "" ]]; then
+	echo "Modo de uso: paso2 url"
+	exit
+fi
+
+url=$1
+
+curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt
+
+grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
+grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'

@@ -1,0 +1,218 @@
+#!/bin/bash
+
+function docurl {
+	local urlfrom="$1"
+	local filename="$2"
+
+	curl "$urlfrom" > "$filename"
+	FILESIZE=$(stat -c%s "$filename")
+	while [[ $FILESIZE == 0 ]]; do
+		echo "La descarga ha fallado."
+		echo "Esperando 5 segundos antes de volver a intentarlo..."
+		sleep 5
+		curl "$urlfrom" > "$filename"
+		FILESIZE=$(stat -c%s "$filename")
+	done	
+}
+
+function userChoice() {
+
+	local limite=$1
+	local reply
+	let reply=0
+
+	echo > /dev/tty
+	echo "Introduzca el número del archivo que quiere ver:" > /dev/tty
+	read reply < /dev/tty
+	echo > /dev/tty
+
+	#We see if the user entered a number such as we need
+	while [[ "$reply" -lt 0 ]] || [[ "$reply" -gt  $limite ]]; do
+
+		#We give advice to the user and exit
+		echo "Tiene que introducir un número de entre los indicados:" > /dev/tty
+		read reply < /dev/tty
+		echo "Reply es: $reply" > /dev/tty
+
+	done
+
+	echo $reply
+}
+
+function getSerie() {
+	local chain=$1
+
+	IFS='/' read -r -a array <<< "$chain"
+
+	local serie="${array[3]}"
+	echo $serie
+}
+
+function searchSeries() {
+
+	#echo "$@"
+	local keys=$(echo $@ | tr " " "+")
+	#echo "$keys"
+
+	curl "https://seriesblanco.com/search.php?q1=$keys" > /tmp/paso0.txt 2> /tmp/paso0.dbg
+
+	egrep -E -o  "href='/serie/[0-9]{4}/.*?.html'" /tmp/paso0.txt | sed "s/\(href='\|'\)//g"
+}
+
+function loadChapters() {
+	local url=$1
+	local serie=$2
+
+	curl "https://seriesblanco.com/$url" > /tmp/paso1.txt 2> /tmp/paso1.dbg
+
+	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie"
+}
+
+function loadChapter() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
+	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
+}
+
+function loadChapter2() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
+	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
+
+
+function getLink() {
+	local enlace=$1
+
+	IFS='/' read -r -a array <<< "$enlace"
+
+	id="${array[1]}"
+	serie="${array[2]}"
+
+	id=${id:6}
+
+
+	#serie=$1
+	#id=$2
+
+	#echo "Serie: $serie Id: $id"
+
+	curl "https://seriesblanco.com/ajax/load_enlace.php?serie=$serie&id=$id" > /tmp/paso3.txt 2> /tmp/paso2.dbg
+
+	#Se debería comprobar si el resultado es vacío. 
+	#La instrucción para saber la longitud del archivo es estaÇ:
+	#FILESIZE=$(stat -c%s "$filename")
+
+	grep -Po "window.location.href= '.*?'" /tmp/paso3.txt | sed "s/\(window.location.href= '\|'\)//g"
+}
+
+#Recuperar los resultados de la búsqueda
+SERIES=$(searchSeries $1 $2 $3 $4 $5 $6 $7 $8 $9)
+
+if [[ $SERIES = "" ]]; then
+	echo "No se ha encontrado ninguna serie"
+	exit
+fi
+
+#Dividir series por nueva línea
+readarray -t y <<<"$SERIES"
+
+#Recorrer el array resultante "y"
+let i=0
+for t in "${y[@]}"; do
+	echo "$i: $t"
+	((i++))
+done
+
+LIMITE=$(( ${#y[*]} - 1 ))
+CHOSENID=$(userChoice $LIMITE)
+
+#echo "El elegido es: ${y[$CHOSENID]}"
+echo
+
+#Extraer el nombre de la serie para futuros usos
+SERIE=$(getSerie "${y[$CHOSENID]}")
+
+CHAPTERS=$(loadChapters ${y[$CHOSENID]} $SERIE)
+
+unset y
+
+if [[ $CHAPTERS = "" ]]; then
+	echo "No se ha encontrado ningún episodio para esta serie"
+	exit
+fi
+
+#Dividir series por nueva línea
+readarray -t y <<<"$CHAPTERS"
+
+#Recorrer el array resultante "y"
+let i=0
+for t in "${y[@]}"; do
+	echo "$i: $t"
+	((i++))
+done
+
+LIMITE=$(( ${#y[*]} - 1 ))
+CHOSENID=$(userChoice $LIMITE)
+
+echo
+#echo ${y[$CHOSENID]}
+#echo "El elegido es: ${y[$CHOSENID]}"
+
+CHAPTER=$(loadChapter "${y[$CHOSENID]}")
+
+unset y
+
+if [[ $CHAPTER = "" ]]; then
+	echo "No se han encontrado enlaces para el episodio seleccionado"
+	exit
+fi
+
+#Dividir series por nueva línea
+readarray -t y <<<"$CHAPTER"
+
+#Recorrer el array resultante "y"
+let i=0
+for t in "${y[@]}"; do
+	echo "$i: $t"
+	((i++))
+done
+
+LIMITE=$(( ${#y[*]} - 1 ))
+CHOSENID=$(userChoice $LIMITE)
+
+#echo ${y[$CHOSENID]}
+#echo "El elegido es: ${y[$CHOSENID]}"
+
+LINK=$(getLink "${y[$CHOSENID]}")
+
+unset y
+
+if [[ $LINK = "" ]]; then
+	echo "Fallo al obtener el enlace"
+	exit
+fi
+
+echo "El enlace es: $LINK"
+firefox "$LINK"
+
+#Dividir series por nueva línea
+#readarray -t y <<<"$CHAPTER"
+
+#Recorrer el array resultante "y"
+# let i=0
+# for t in "${y[@]}"; do
+# 	echo "$i: $t"
+# 	((i++))
+# done
+
+# LIMITE=$(( ${#y[*]} - 1 ))
+# CHOSENID=$(userChoice $LIMITE)
+
+# #echo ${y[$CHOSENID]}
+# echo "El elegido es: ${y[$CHOSENID]}"

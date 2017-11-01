@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [[ $1 = "" ]]; then
+	echo "Modo de uso: paso1 url"
+	exit
+fi
+
+url=$1
+
+curl "https://seriesblanco.com/$url" > /tmp/paso1.txt
+
+egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt

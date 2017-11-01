@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#El resultado del paso2, que es de la siguiente guisa:
+#/enlace11560158/1120/9/18/
+#se puede extraer con los siguientes comandos
+#IFS='/' read -r -a array <<< "/enlace11560158/1120/9/18/"
+#Obteniéndose cada parte con "${array[n]}", y debiéndosele restar
+#al primer elemento, los seis caracteres de la palabra enlace.
+#echo ${cad:6}
+
+
+if [[ $1 = "" ]]; then
+	echo "Modo de uso: paso3 enlace"
+	exit
+
+fi
+
+enlace=$1
+
+IFS='/' read -r -a array <<< "$enlace"
+
+id="${array[1]}"
+serie="${array[2]}"
+
+id=${id:6}
+
+
+#serie=$1
+#id=$2
+
+echo "Serie: $serie Id: $id"
+
+curl "https://seriesblanco.com/ajax/load_enlace.php?serie=$serie&id=$id" > /tmp/paso3.txt
+
+#Se debería comprobar si el resultado es vacío. 
+#La instrucción para saber la longitud del archivo es estaÇ:
+#FILESIZE=$(stat -c%s "$filename")
+
+grep -Po "window.location.href= '.*?'" /tmp/paso3.txt | sed "s/\(window.location.href= '\|'\)//g"

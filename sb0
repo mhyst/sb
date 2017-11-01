@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if [[ $1 = "" ]]; then
+	echo "Modo de uso: paso0 palabras clave"
+	exit
+fi
+
+echo "$@"
+keys=$(echo $@ | tr " " "+")
+echo "$keys"
+
+curl "https://seriesblanco.com/search.php?q1=$keys" > /tmp/paso0.txt
+
+egrep -E -o  "href='/serie/[0-9]{4}/.*?.html'" /tmp/paso0.txt | sed "s/\(href='\|'\)//g"
