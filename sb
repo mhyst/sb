@@ -84,7 +84,7 @@ function loadChapter2() {
 
 	grep -Po '<a href="/enlace.*?" target="_blank">.*?</a>' /tmp/paso2.txt | grep "streamcloud" > /tmp/paso2.2.txt
 	grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
-
+}
 
 function getLink() {
 	local enlace=$1
