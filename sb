@@ -77,8 +77,20 @@ function loadChapters() {
 	local serie=$2
 
 	curl "https://seriesblanco.com/$url" > /tmp/paso1.txt 2> /tmp/paso1.dbg
+	
+	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
 
-	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie"
+	if [[ $temporada > 0 ]]; then
+		grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+		rm /tmp/paso1.2.txt
+		mv /tmp/paso1.3.txt /tmp/paso1.2.txt
+	fi
+	if [[ $capitulo > 0 ]]; then
+		grep "capitulo-$capitulo" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+		rm /tmp/paso1.2.txt
+		mv /tmp/paso1.3.txt /tmp/paso1.2.txt	
+	fi
+	cat /tmp/paso1.2.txt
 }
 
 function loadChapterLinks() {
@@ -163,14 +175,18 @@ function help {
 	echo
 }
 
-TEMP=`getopt -o tcs: --long "temporada:,capitulo:,servicio:" -- "$@"`
+TEMP=`getopt -o t:c:s: --long "temporada:,capitulo:,servicio:" -- "$@"`
 
-# Debug
-echo "$TEMP"
+
+
 if [ $? != 0 ]; then help; exit 1; fi
 
 # Note the quotes around `$TEMP': they are essential!
 eval set -- "$TEMP"
+
+
+# Debug
+echo "$TEMP"
 
 # VER_NO_VISTOS=false
 # VER_VISTOS=false
@@ -208,6 +224,7 @@ if [[ $1 = "--" ]]; then
 	shift
 fi
 
+echo "Parámetros: $temporada $capitulo $servicio"
 echo "Argumentos: $1 $2 $3 $4 $5 $6 $7 $8 $9"
 # PARM=""
 # for arg in $@; do
@@ -309,7 +326,9 @@ let i=0
 for t in "${y[@]}"; do
 	mylink=$(parseLink "$t")
 	myservice=$(parseService "${x[i]}")
-	echo "$i: $mylink / $myservice"
+	if [[ ${myservice,,} == ${servicio,,}* ]]; then
+		echo "$i: $mylink / $myservice"
+	fi
 	((i++))
 done
 
