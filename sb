@@ -123,6 +123,109 @@ function getLink() {
 	grep -Po "window.location.href= '.*?'" /tmp/paso3.txt | sed "s/\(window.location.href= '\|'\)//g"
 }
 
+###############################################################################
+# feature1: BEGIN
+###############################################################################
+
+#Current version
+VERSION="0.0.1"
+
+trim() {
+	local FOO="$1"
+	FOO_NO_EXTERNAL_SPACE="$(echo -e "${FOO}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+	echo "$FOO_NO_EXTERNAL_SPACE"
+}
+
+function help {
+	echo "sb $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
+	echo "sb webscrapper"
+	echo
+	echo "Modo de empleo: svr [opción] <cadena de búsqueda>"
+	echo
+	echo " Ejemplos:"
+	echo 	sb discovery
+	echo
+	echo	sb -t 9 se ha escrito un crimen
+	echo
+	echo	sb -t 1 -c 7 el mentalista
+	echo
+	echo	sb -t 2 -c 2 -s streamcloud the orville
+	echo
+	echo "Opciones"
+	echo " -t"
+	echo "      Filtrar por temporada."
+	echo
+	echo " -c"
+	echo "      Filtrar por capítulo."
+	echo
+	echo " -s"
+	echo "      Filtrar por servicio."
+	echo
+}
+
+TEMP=`getopt -o tcs: --long "temporada:,capitulo:,servicio:" -- "$@"`
+
+# Debug
+echo "$TEMP"
+if [ $? != 0 ]; then help; exit 1; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
+
+# VER_NO_VISTOS=false
+# VER_VISTOS=false
+# forth_number=0
+# forth_all=false
+# reset=false
+# reset_by=false
+# back=0
+# reset_data=()
+temporada=0
+capitulo=0
+servicio=""
+
+while true; do
+  case "$1" in
+  	-h | --help ) help; exit ;;
+	-t | --temporada ) temporada=$2; shift ;;
+	-c | --capitulo) capitulo=$2; shift ;;
+	-s | --servicio) servicio=$2; shift ;;
+	# -b | --back ) let back++ ;;
+	# -f | --forth ) let forth_number++ ;;
+	# --forth-by ) forth_number=$2; shift ;;
+	# -a | --forth-all ) forth_all=true ;;
+	# -n ) VER_NO_VISTOS=true ;;
+    # -v ) VER_VISTOS=true ;;
+	# -r | --reset ) reset=true ;;
+	# -m | --mreset ) reset_data+=("$2"); shift ;;
+	# --reset-by ) reset_by=true; bydata=$2; shift ;;
+    * ) break ;;
+  esac
+  shift
+done
+
+if [[ $1 = "--" ]]; then
+	shift
+fi
+
+echo "Argumentos: $1 $2 $3 $4 $5 $6 $7 $8 $9"
+# PARM=""
+# for arg in $@; do
+# 	if [[ $1 != "--" ]]; then
+# 		PARM="$PARM$1 "
+# 	fi
+# 	shift
+# done
+
+#PARM=$(trim $PARM)
+
+echo "sb $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
+echo "Webscrapper para facilitar ver series de sb"
+echo
+##############################################################################
+# feature1: END
+##############################################################################
+
 #Recuperar los resultados de la búsqueda
 SERIES=$(searchSeries $1 $2 $3 $4 $5 $6 $7 $8 $9)
 
