@@ -1,0 +1,302 @@
+#!/bin/bash
+
+SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
+
+function docurl {
+	local urlfrom="$1"
+	local filename="$2"
+
+	curl "$urlfrom" > "$filename"
+	FILESIZE=$(stat -c%s "$filename")
+	while [[ $FILESIZE == 0 ]]; do
+		echo "La descarga ha fallado."
+		echo "Esperando 5 segundos antes de volver a intentarlo..."
+		sleep 5
+		curl "$urlfrom" > "$filename"
+		FILESIZE=$(stat -c%s "$filename")
+	done	
+}
+
+function userChoice() {
+
+	local limite=$1
+	local reply
+	let reply=0
+
+	echo > /dev/tty
+	echo "Introduzca el número del archivo que quiere ver:" > /dev/tty
+	read reply < /dev/tty
+	echo > /dev/tty
+
+	#We see if the user entered a number such as we need
+	while [[ "$reply" -lt 0 ]] || [[ "$reply" -gt  $limite ]]; do
+
+		#We give advice to the user and exit
+		echo "Tiene que introducir un número de entre los indicados:" > /dev/tty
+		read reply < /dev/tty
+		echo "Reply es: $reply" > /dev/tty
+
+	done
+
+	echo $reply
+}
+
+function getSerie() {
+	local chain=$1
+
+	IFS='/' read -r -a array <<< "$chain"
+
+	local serie="${array[3]}"
+	echo $serie
+}
+
+function parseLink() {
+	local text=$1
+
+	grep -Po 'href=".*?"' <<< $text | sed 's/\(href="\|"\)//g'
+}
+
+function parseService() {
+	local text=$1
+
+	#grep -Po '/servidores/".*?.jpg"' <<< $text | sed 's/\(/servidores//"\|.jpg"\)//g'
+	grep -Po "src='/servidores/.*?'" <<< $text | sed "s/\(src='\/servidores\/\|'\)//g"
+}
+
+function parseTemporada() {
+	local url=$1
+
+	local t=`grep -Po "temporada-[0-9]{1,2}" <<< $url`
+
+	echo ${t:10}
+}
+
+function parseCapitulo() {
+	local url=$1
+
+	local t=`grep -Po "capitulo-[0-9]{1,3}" <<< $url`
+
+	echo ${t:9}
+}
+
+function searchSeries() {
+
+	#echo "$@"
+	local keys=$(echo $@ | tr " " "+")
+	#echo "$keys"
+
+	curl "https://seriesblanco.com/search.php?q1=$keys" > /tmp/paso0.txt 2> /tmp/paso0.dbg
+
+	egrep -E -o  "href='/serie/[0-9]{4}/.*?.html'" /tmp/paso0.txt | sed "s/\(href='\|'\)//g"
+}
+
+function loadChapters() {
+	local url=$1
+	local serie=$2
+
+	curl "https://seriesblanco.com/$url" > /tmp/paso1.txt 2> /tmp/paso1.dbg
+	
+	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
+
+	if [[ $temporada > 0 ]]; then
+		grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+		rm /tmp/paso1.2.txt
+		mv /tmp/paso1.3.txt /tmp/paso1.2.txt
+	fi
+	if [[ $capitulo > 0 ]]; then
+		grep "capitulo-$capitulo" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+		rm /tmp/paso1.2.txt
+		mv /tmp/paso1.3.txt /tmp/paso1.2.txt	
+	fi
+	cat /tmp/paso1.2.txt
+}
+
+function loadChapterLinks() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	grep -Po '<a href="/enlace.*?" target="_blank">' /tmp/paso2.txt
+	#grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
+}
+
+function loadChapterServices() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	grep -Po "src='/servidores.*?' width='80'" /tmp/paso2.txt
+}
+
+function getLink() {
+	local enlace=$1
+
+	IFS='/' read -r -a array <<< "$enlace"
+
+	id="${array[1]}"
+	serie="${array[2]}"
+
+	id=${id:6}
+
+
+	#serie=$1
+	#id=$2
+
+	#echo "Serie: $serie Id: $id"
+
+	curl "https://seriesblanco.com/ajax/load_enlace.php?serie=$serie&id=$id" > /tmp/paso3.txt 2> /tmp/paso2.dbg
+
+	#Se debería comprobar si el resultado es vacío. 
+	#La instrucción para saber la longitud del archivo es estaÇ:
+	#FILESIZE=$(stat -c%s "$filename")
+
+	grep -Po "window.location.href= '.*?'" /tmp/paso3.txt | sed "s/\(window.location.href= '\|'\)//g"
+}
+
+##################################################################################################
+# Funciones base de datos: BEGIN
+##################################################################################################
+function getBDLastID (){
+	local tabla="$1"
+	local ID=`$SQLITE "select max(id) from $tabla"`
+	echo "$ID"
+}
+##################################################################################################
+# Funciones base de datos: END
+##################################################################################################
+
+echo "Argumentos: $1 $2 $3 $4 $5 $6 $7 $8 $9"
+# PARM=""
+# for arg in $@; do
+# 	if [[ $1 != "--" ]]; then
+# 		PARM="$PARM$1 "
+# 	fi
+# 	shift
+# done
+
+#PARM=$(trim $PARM)
+
+echo "sbpopulate $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
+echo "Webscrapper para llenar la base de datos de sbdb"
+echo
+##############################################################################
+# feature1: END
+##############################################################################
+
+#Recuperar los resultados de la búsqueda
+SERIES=$(searchSeries $1 $2 $3 $4 $5 $6 $7 $8 $9)
+
+if [[ $SERIES = "" ]]; then
+	echo "No se ha encontrado ninguna serie"
+	exit
+fi
+
+#Dividir series por nueva línea
+readarray -t aseries <<<"$SERIES"
+
+#Recorrer el array resultante "y"
+let i=0
+for t in "${aseries[@]}"; do
+	echo "$i: $t"
+	((i++))
+done
+
+LIMITE=$(( ${#aseries[*]} - 1 ))
+CHOSENID=$(userChoice $LIMITE)
+
+#echo "El elegido es: ${y[$CHOSENID]}"
+echo
+
+#Extraer el nombre de la serie para futuros usos
+SERIE=$(getSerie "${aseries[$CHOSENID]}")
+
+echo "Introduzca el título de esta serie"
+read titulo
+
+while [[ "$titulo" = "" ]]; do
+	echo "El título no puede ser cadena vacía"
+	echo "Introduzca el título de esta serie"
+	read titulo	
+done
+
+`$SQLITE "insert into series (titulo, enlace) values (\"$titulo\",\"$SERIE\");"`
+SERIE_ID=$(getBDLastID "series")
+echo "id de la serie: $SERIE_ID"
+
+
+#AHora le toca al turno a los capítulos de la serie
+CHAPTERS=$(loadChapters ${aseries[$CHOSENID]} $SERIE)
+
+if [[ $CHAPTERS = "" ]]; then
+	echo "No se ha encontrado ningún episodio para esta serie"
+	exit
+fi
+
+#Dividir series por nueva línea
+readarray -t achapters <<<"$CHAPTERS"
+
+#Recorrer el array resultante "y"
+let i=0
+for e in "${achapters[@]}"; do
+	myTemporada=$(parseTemporada "$e")
+	myCapitulo=$(parseCapitulo "$e")
+
+	echo "Temporada: $myTemporada, Capítulo: $myCapitulo"
+
+	`$SQLITE "insert into episodios (idserie, temporada, episodio, visto) values ($SERIE_ID, $myTemporada, $myCapitulo, 0)"`
+	CAPITULO_ID=$(getBDLastID "episodios")
+
+	echo "id del episodio: $CAPITULO_ID"
+
+	CHAPTERLINKS=$(loadChapterLinks "$e")
+	CHAPTERSERVICES=$(loadChapterServices "$e")
+
+	#Nos preparamos para recorrer los enlaces
+
+	if [[ $CHAPTERLINKS = "" ]]; then
+		echo "No se han encontrado enlaces para el episodio seleccionado"
+		continue
+	fi
+
+	if [[ $CHAPTERSERVICES = "" ]]; then
+		echo "No se han encontrado enlaces para el episodio seleccionado"
+		continue
+	fi
+	#Dividir series por nueva línea
+	readarray -t alinks <<<"$CHAPTERLINKS"
+	readarray -t aservices <<<"$CHAPTERSERVICES"
+
+	if [[ "${#alinks[*]}" != "${#aservices[*]}" ]]; then
+		echo "El número de enlaces no se corresponde con el número de servicios"
+		echo "y contiene ${#alinks[*]} mientras que x contiene ${#aservices[*]}"
+		continue
+	fi
+
+	#Recorrer el array resultante "y"
+	let j=0
+	for t in "${alinks[@]}"; do
+		mylink=$(parseLink "$t")
+		myservice=$(parseService "${aservices[j]}")
+		if [[ ${myservice,,} == ${servicio,,}* ]]; then
+			echo "$j: $mylink / $myservice"
+
+			# Recuperamos el enlace final
+
+			LINK=$(getLink $(parseLink "${alinks[j]}"))
+
+			if [[ $LINK = "" ]]; then
+				echo "Fallo al obtener el enlace"
+				continue
+			fi
+
+			echo "El enlace es: $LINK"	
+			`$SQLITE "insert into enlaces (idserie, idepisodio, enlace, url) values ($SERIE_ID, $CAPITULO_ID, \"$LINK\", \"$myservice\")"`
+			LINK_ID=$(getBDLastID "enlaces")
+			echo "En id del enlace es $LINK_ID"
+
+		fi
+		((j++))
+	done	
+
+	((i++))
+done
