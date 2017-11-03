@@ -1,7 +1,14 @@
 #!/bin/bash
+#################################################################################################
+# V A R I A B L E S
+#################################################################################################
 
 SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
 
+
+#################################################################################################
+# Funciones que no se utilizan
+#################################################################################################
 function docurl {
 	local urlfrom="$1"
 	local filename="$2"
@@ -16,6 +23,10 @@ function docurl {
 		FILESIZE=$(stat -c%s "$filename")
 	done	
 }
+
+#################################################################################################
+# Funciones reutilizables
+#################################################################################################
 
 function userChoice() {
 
@@ -41,6 +52,10 @@ function userChoice() {
 	echo $reply
 }
 
+#################################################################################################
+# Funciones de extracción de datos con REGEXP
+#################################################################################################
+
 function getSerie() {
 	local chain=$1
 
@@ -59,7 +74,6 @@ function parseLink() {
 function parseService() {
 	local text=$1
 
-	#grep -Po '/servidores/".*?.jpg"' <<< $text | sed 's/\(/servidores//"\|.jpg"\)//g'
 	grep -Po "src='/servidores/.*?'" <<< $text | sed "s/\(src='\/servidores\/\|'\)//g"
 }
 
@@ -78,6 +92,10 @@ function parseCapitulo() {
 
 	echo ${t:9}
 }
+
+#################################################################################################
+# Funciones de web scrapping
+#################################################################################################
 
 function searchSeries() {
 
@@ -155,16 +173,66 @@ function getLink() {
 
 ##################################################################################################
 # Funciones base de datos: BEGIN
+#-------------------------------------------------------------------------------------------------
+# Todas ellas contendrán BD en su nombre
 ##################################################################################################
-function getBDLastID (){
+
+#Obtener el último ID generado (por una inserción en una tabla)
+function getBDLastID () {
 	local tabla="$1"
 	local ID=`$SQLITE "select max(id) from $tabla"`
 	echo "$ID"
 }
+
+#Comprobar si una serie ya existe
+function existsBDSeries () {
+	local enlace="$1"
+
+	local res=`$SQLITE "select id from series where enlace = \"$enlace\""`
+	if [[ $res = "" ]]; then
+		echo "-1"
+	else
+		echo "$res"
+	fi
+}
+
+#Comprobar si un episodio ya existe
+function existsBDEpisodios () {
+	local idserie="$1"
+	local temporada="$2"
+	local episodio="$3"
+
+	local res=`$SQLITE "select id from episodios where idserie = $idserie and temporada = $temporada and episodio = $episodio"`
+	if [[ $res = "" ]]; then
+		echo "-1"
+	else
+		echo "$res"
+	fi
+}
+
+#Comprobar si un episodio ya existe
+function existsBDEnlaces () {
+	local idserie="$1"
+	local idepisodio="$2"
+	local enlace="$3"
+
+	local res=`$SQLITE "select id from enlaces where idserie = $idserie and idepisodio = $idepisodio and enlace=\"$enlace\""`
+	if [[ $res = "" ]]; then
+		echo "-1"
+	else
+		echo "$res"
+	fi
+}
+
+
 ##################################################################################################
 # Funciones base de datos: END
 ##################################################################################################
 
+
+#################################################################################################
+# P R O G R A M A      P R I N C I P A L
+#################################################################################################
 echo "Argumentos: $1 $2 $3 $4 $5 $6 $7 $8 $9"
 # PARM=""
 # for arg in $@; do
@@ -204,25 +272,31 @@ done
 LIMITE=$(( ${#aseries[*]} - 1 ))
 CHOSENID=$(userChoice $LIMITE)
 
-#echo "El elegido es: ${y[$CHOSENID]}"
+#echo "El elegido es: ${aseries[$CHOSENID]}"
 echo
 
 #Extraer el nombre de la serie para futuros usos
 SERIE=$(getSerie "${aseries[$CHOSENID]}")
 
-echo "Introduzca el título de esta serie"
-read titulo
+SERIE_ID=$(existsBDSeries "$SERIE")
+if [[ $SERIE_ID == -1 ]]; then
+	echo "La serie no existe. Nos disponemos a insertarla"
 
-while [[ "$titulo" = "" ]]; do
-	echo "El título no puede ser cadena vacía"
 	echo "Introduzca el título de esta serie"
-	read titulo	
-done
+	read titulo
 
-`$SQLITE "insert into series (titulo, enlace) values (\"$titulo\",\"$SERIE\");"`
-SERIE_ID=$(getBDLastID "series")
-echo "id de la serie: $SERIE_ID"
+	while [[ "$titulo" = "" ]]; do
+		echo "El título no puede ser cadena vacía"
+		echo "Introduzca el título de esta serie"
+		read titulo	
+	done
 
+	`$SQLITE "insert into series (titulo, enlace) values (\"$titulo\",\"$SERIE\");"`
+	SERIE_ID=$(getBDLastID "series")	
+	echo "Se añadió la serie con el id: $SERIE_ID"
+else
+	echo "La serie existe y tiene el id: $SERIE_ID"
+fi
 
 #AHora le toca al turno a los capítulos de la serie
 CHAPTERS=$(loadChapters ${aseries[$CHOSENID]} $SERIE)
@@ -243,10 +317,16 @@ for e in "${achapters[@]}"; do
 
 	echo "Temporada: $myTemporada, Capítulo: $myCapitulo"
 
-	`$SQLITE "insert into episodios (idserie, temporada, episodio, visto) values ($SERIE_ID, $myTemporada, $myCapitulo, 0)"`
-	CAPITULO_ID=$(getBDLastID "episodios")
+	CAPITULO_ID=$(existsBDEpisodios "$SERIE_ID" "$myTemporada" "$myCapitulo")
 
-	echo "id del episodio: $CAPITULO_ID"
+	if [[ $CAPITULO_ID == -1 ]]; then
+		`$SQLITE "insert into episodios (idserie, temporada, episodio, visto) values ($SERIE_ID, $myTemporada, $myCapitulo, 0)"`
+		CAPITULO_ID=$(getBDLastID "episodios")
+
+		echo "Se añadió el episodio con el id: $CAPITULO_ID"
+	else
+		echo "El episodio ya existe con el id: $CAPITULO_ID"
+	fi
 
 	CHAPTERLINKS=$(loadChapterLinks "$e")
 	CHAPTERSERVICES=$(loadChapterServices "$e")
@@ -289,10 +369,16 @@ for e in "${achapters[@]}"; do
 				continue
 			fi
 
-			echo "El enlace es: $LINK"	
-			`$SQLITE "insert into enlaces (idserie, idepisodio, enlace, url) values ($SERIE_ID, $CAPITULO_ID, \"$LINK\", \"$myservice\")"`
-			LINK_ID=$(getBDLastID "enlaces")
-			echo "En id del enlace es $LINK_ID"
+			echo "El enlace es: $LINK"
+
+			LINK_ID=$(existsBDEnlaces "$SERIE_ID" "$CAPITULO_ID" "$LINK")
+			if [[ $LINK_ID == "-1" ]]; then
+				`$SQLITE "insert into enlaces (idserie, idepisodio, enlace, url) values ($SERIE_ID, $CAPITULO_ID, \"$LINK\", \"$myservice\")"`
+				LINK_ID=$(getBDLastID "enlaces")
+				echo ">>>Enlace: $LINK_ID - Temporada: $myTemporada - Capítulo: $myCapitulo"
+			else
+				echo "Enlace: $LINK_ID - Temporada: $myTemporada - Capítulo: $myCapitulo"
+			fi
 
 		fi
 		((j++))
