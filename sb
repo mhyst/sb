@@ -78,7 +78,7 @@ function loadChapters() {
 
 	curl "https://seriesblanco.com/$url" > /tmp/paso1.txt 2> /tmp/paso1.dbg
 	
-	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,4}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
+	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]{1,3}+/capitulo-[0-9]{1,4}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
 
 	if [[ $temporada > 0 ]]; then
 		grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
@@ -204,8 +204,8 @@ while true; do
   case "$1" in
   	-h | --help ) help; exit ;;
 	-t | --temporada ) temporada=$2; shift ;;
-	-c | --capitulo) capitulo=$2; shift ;;
-	-s | --servicio) servicio=$2; shift ;;
+	-c | --capitulo ) capitulo=$2; shift ;;
+	-s | --servicio ) servicio=$2; shift ;;
 	# -b | --back ) let back++ ;;
 	# -f | --forth ) let forth_number++ ;;
 	# --forth-by ) forth_number=$2; shift ;;

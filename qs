@@ -73,12 +73,12 @@ function queryTemporadas() {
 
 function queryEpisodios() {
 	local idserie="$1"
-	local temporada="$2"
+	local ltemporada="$2"
 
 	if $vervistos || (( $temporada > 0)); then
-		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $temporada"`
+		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $ltemporada"`
 	else
-		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $temporada and visto = 0"`
+		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $ltemporada and visto = 0"`
 	fi
 	echo "$res"
 }
@@ -116,6 +116,36 @@ function queryEnlacesFiltro() {
 	#echo "select * from enlaces where idserie = $idserie and idepisodio = $idepisodio and url like '%$servicio%'" > /dev/tty
 	local res=`$SQLITE "select * from enlaces where idserie = $idserie and idepisodio = $idepisodio and url like '%$servicio%'"`
 	echo "$res"
+}
+
+function back() {
+	local idserie="$1"
+
+	local res=`$SQLITE "select max(id) from episodios where idserie=$idserie and visto>0"`
+	if [[ $res != "" ]]; then
+		`$SQLITE "update Episodios set visto=0 where id = $res"`
+	fi
+}
+
+function forth() {
+	local idserie="$1"
+
+	local res=`$SQLITE "select min(id) from episodios where idserie=$idserie and visto=0"`
+	if [[ $res != "" ]]; then
+		`$SQLITE "update episodios set visto=1 where id = $res"`
+	fi
+}
+
+function reset() {
+	local idserie="$1"
+
+	`$SQLITE "update episodios set visto=0 where idserie = $idserie"`
+}
+
+function forth_all() {
+	local idserie="$1"
+
+	`$SQLITE "update episodios set visto=1 where idserie = $idserie"`
 }
 
 function parseSerie () {
@@ -226,7 +256,7 @@ function help {
 # P R O G R A M A      P R I N C I P A L
 #################################################################################################
 
-TEMP=`getopt -o ht:c:s:lv --long "help,temporada:,capitulo:,servicio:,limit" -- "$@"`
+TEMP=`getopt -o ht:c:s:lvnbfr --long "help,temporada:,capitulo:,servicio:,limit,next,back,forth,forth-by:,forth-all,back-by:,reset" -- "$@"`
 
 
 
@@ -241,33 +271,35 @@ eval set -- "$TEMP"
 
 # VER_NO_VISTOS=false
 # VER_VISTOS=false
-# forth_number=0
-# forth_all=false
-# reset=false
+forth_number=0
+forth_all=false
+reset=false
 # reset_by=false
-# back=0
+back=0
 # reset_data=()
 temporada=0
 capitulo=0
 servicio=""
 limit=false
 vervistos=false
+gonext=false
 
 while true; do
   case "$1" in
   	-h | --help ) help; exit ;;
 	-t | --temporada ) temporada=$2; shift ;;
-	-c | --capitulo) capitulo=$2; shift ;;
-	-s | --servicio) servicio=$2; shift ;;
-	-l | --limit) limit=true ;;
-	-v) vervistos=true ;;
-	# -b | --back ) let back++ ;;
-	# -f | --forth ) let forth_number++ ;;
-	# --forth-by ) forth_number=$2; shift ;;
-	# -a | --forth-all ) forth_all=true ;;
-	# -n ) VER_NO_VISTOS=true ;;
+	-c | --capitulo ) capitulo=$2; shift ;;
+	-s | --servicio ) servicio=$2; shift ;;
+	-l | --limit ) limit=true ;;
+	-v ) vervistos=true ;;
+	-n | --next ) gonext=true ;;
+	-b | --back ) let back++ ;;
+	-f | --forth ) let forth_number++ ;;
+	--forth-by ) forth_number=$2; shift ;;
+	-a | --forth-all ) forth_all=true ;;
+	--back-by ) back=$2; shift ;;
     # -v ) VER_VISTOS=true ;;
-	# -r | --reset ) reset=true ;;
+	-r | --reset ) reset=true ;;
 	# -m | --mreset ) reset_data+=("$2"); shift ;;
 	# --reset-by ) reset_by=true; bydata=$2; shift ;;
     * ) break ;;
@@ -298,6 +330,12 @@ echo
 
 SERIES=$(querySeries "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9")
 
+if [[ $SERIES = "" ]]; then
+	echo "No hay series en la base de datos."
+	echo "Use qspopulate con la url de una serie para rellenarla"
+	exit
+fi
+
 
 echo "Series que coinciden con su cadena de búsqueda: "
 echo
@@ -321,25 +359,65 @@ echo
 #Extraer el nombre de la serie para futuros usos
 SERIE=$(parseIDSerie "${aseries[$CHOSENID]}")
 
+#############################
+# Ajustar puntero de vistas
+#############################
+#reset
+if $reset; then
+	reset "$SERIE"
+fi
+#forth-all
+if $forth_all; then
+	forth_all "$SERIE"
+fi
+#Ir atrás
+while [[ $back > 0 ]]; do
+	res=$(back "$SERIE")
+	
+	let back--
+done
+unset res
+
+#Ir adelante
+while [[ $forth_number > 0 ]]; do
+	res=$(forth "$SERIE")
+	
+	let forth_number--
+done
+unset res
+
+
 nombreserie=$(parseSerie "${aseries[$CHOSENID]}")
 echo "Ha escogido $nombreserie"
 
 if [[ $temporada == 0 ]]; then
 	TEMPORADAS=$(queryTemporadas "$SERIE")
 
+	if [[ $TEMPORADAS = "" ]]; then
+		echo "No hay temporadas pendientes en esta serie."
+		echo "Use qspopulate con la url de una serie para rellenarla."
+		echo "O, si ya las ha visto todas y desea volver a hacerlo, invoque de nuevo a qs con la opción -r."
+		exit
+	fi
+
 
 	echo "Temporadas disponibles:"
 	echo
 	readarray -t atemporadas <<<"$TEMPORADAS"
 
-	let i=0
-	for t in "${atemporadas[@]}"; do
-		echo "	$i:	Temporada $t"
-		((i++))
-	done
+	if [[ ${#atemporadas[*]} == 1 ]] || $gonext; then
+		echo "* [Sólo hay una temporada, seleccionada automáticamente]"
+		CHOSENID=0
+	else
+		let i=0
+		for t in "${atemporadas[@]}"; do
+			echo "	$i:	Temporada $t"
+			((i++))
+		done
 
-	LIMITE=$(( ${#atemporadas[*]} - 1 ))
-	CHOSENID=$(userChoice $LIMITE "Seleccione la temporada: ")
+		LIMITE=$(( ${#atemporadas[*]} - 1 ))
+		CHOSENID=$(userChoice $LIMITE "Seleccione la temporada: ")
+	fi
 
 	TEMPORADA="${atemporadas[$CHOSENID]}"
 else
@@ -354,25 +432,38 @@ if [[ $capitulo == 0 ]]; then
 
 	EPISODIOS=$(queryEpisodios "$SERIE" "$TEMPORADA")
 
+	if [[ $EPISODIOS = "" ]]; then
+		echo "No hay episodios pendientes en esta serie."
+		echo "Si ya los ha visto todos y quiere volver a hacerlo, invoque qs de nuevo, esta vez con la opción -r"
+		exit
+	fi
+
 	echo "Episodios de la temporada $TEMPORADA:"
 	echo
 
 	readarray -t aepisodios <<<"$EPISODIOS"
 
-	let i=0
-	for t in "${aepisodios[@]}"; do
-		echo "	$i:	Episodio $(parseEpisodio $t)"
+	if $gonext; then
+		echo "* [Opción --next. Saltando al siguiente episodio]"
+		CHOSENID=0
+	else
+		let i=0
+		for t in "${aepisodios[@]}"; do
+			echo "	$i:	Episodio $(parseEpisodio $t)"
 
-		if $limit; then
-			if (( i == 10 )); then
-				break
+			if $limit; then
+				if (( i == 10 )); then
+					RESTANTES=$(( ${#aepisodios[*]}-10 ))
+					echo "* [Salida limitada a 10 episodios - $RESTANTES restantes]"
+					break
+				fi
 			fi
-		fi
-		((i++))
-	done
+			((i++))
+		done
 
-	LIMITE=$(( ${#aepisodios[*]} - 1 ))
-	CHOSENID=$(userChoice $LIMITE "Seleccione el episodio que quiere ver: ")
+		LIMITE=$(( ${#aepisodios[*]} - 1 ))
+		CHOSENID=$(userChoice $LIMITE "Seleccione el episodio que quiere ver: ")
+	fi
 
 	EPISODIO="${aepisodios[$CHOSENID]}"
 	IDEPISODIO=$(parseIDEpisodio "$EPISODIO")
@@ -392,6 +483,11 @@ if [[ $servicio == 0 ]]; then
 	ENLACES=$(queryEnlaces "$SERIE" "$IDEPISODIO")
 else
 	ENLACES=$(queryEnlacesFiltro "$SERIE" "$IDEPISODIO" "$servicio")
+fi
+
+if [[ $ENLACES = "" ]]; then
+	echo "No hay enlaces para este episodio."
+	exit
 fi
 
 echo "Enlaces del episodio $EPISODIO de la temporada $TEMPORADA: "
