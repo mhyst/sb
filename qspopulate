@@ -80,7 +80,7 @@ function parseService() {
 function parseTemporada() {
 	local url=$1
 
-	local t=`grep -Po "temporada-[0-9]{1,2}" <<< $url`
+	local t=`grep -Po "temporada-[0-9]{1,3}" <<< $url`
 
 	echo ${t:10}
 }
@@ -88,7 +88,7 @@ function parseTemporada() {
 function parseCapitulo() {
 	local url=$1
 
-	local t=`grep -Po "capitulo-[0-9]{1,3}" <<< $url`
+	local t=`grep -Po "capitulo-[0-9]{1,4}" <<< $url`
 
 	echo ${t:9}
 }
@@ -114,7 +114,7 @@ function loadChapters() {
 
 	curl "https://seriesblanco.com/$url" > /tmp/paso1.txt 2> /tmp/paso1.dbg
 	
-	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]+/capitulo-[0-9]{1,2}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
+	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]{1,3}+/capitulo-[0-9]{1,4}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
 
 	if [[ $temporada > 0 ]]; then
 		grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
