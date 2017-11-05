@@ -2,7 +2,7 @@
 #################################################################################################
 # V A R I A B L E S
 #################################################################################################
-FILTROAWK="/home/mhyst/scripts/seriesblanco/filtro.awk"
+FILTROAWK="/home/mhyst/bin/scripts/seriesblanco/filtro.awk"
 SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
 #Current version
 VERSION="0.0.1"
@@ -107,7 +107,7 @@ function searchSeries() {
 
 	curl "https://seriesblanco.com/search.php?q1=$keys" > /tmp/paso0.txt 2> /tmp/paso0.dbg
 
-	egrep -E -o  "href='/serie/[0-9]{4}/.*?.html'" /tmp/paso0.txt | sed "s/\(href='\|'\)//g"
+	egrep -E -o  "href='/serie/[0-9]{1,4}/.*?.html'" /tmp/paso0.txt | sed "s/\(href='\|'\)//g"
 }
 
 function loadChapters() {
@@ -149,7 +149,7 @@ function loadChapterLinks() {
 function loadChapterServices() {
 	local url=$1
 
-	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.1.dbg
 
 	grep -Po "src='/servidores.*?' width='80'" /tmp/paso2.txt
 }
@@ -170,7 +170,7 @@ function getLink() {
 
 	#echo "Serie: $serie Id: $id"
 
-	curl "https://seriesblanco.com/ajax/load_enlace.php?serie=$serie&id=$id" > /tmp/paso3.txt 2> /tmp/paso2.dbg
+	curl "https://seriesblanco.com/ajax/load_enlace.php?serie=$serie&id=$id" > /tmp/paso3.txt 2> /tmp/paso2.2.dbg
 
 	#Se debería comprobar si el resultado es vacío. 
 	#La instrucción para saber la longitud del archivo es estaÇ:
@@ -251,15 +251,13 @@ function help {
 	echo " -t"
 	echo "      Filtrar por temporada."
 	echo
-	echo "Nota: Si filtramos por temporada recabará datos sólo de la temporada proporcionada."
-	echo "      Es decir, que no cuenta de esa temporada hacia adelante."
+	echo "Nota: Si filtramos por temporada recabará datos a partir de la temporada escogida."
 	echo
 	echo " -c"
-	echo "      Filtrar por capítulo."
+	echo "      Filtrar por episodio."
 	echo 
-	echo "Nota: Filtrar por capítulo no tiene sentido, por lo que no se ha implementado esa opción."
-	echo "Esas limitaciones se deben a que el filtrado se hace con grep y expresiones regulares de"
-	echo "para mejorar el rendimiento."
+	echo "Nota: Filtrar por capítulo solo funcionará si también se introduce la temporada."
+	echo "De esa manera se empezará a recabar datos a partir de la temporada y episodio elegidos."
 	echo
 }
 
@@ -405,7 +403,7 @@ for e in "${achapters[@]}"; do
 	myTemporada=$(parseTemporada "$e")
 	myCapitulo=$(parseCapitulo "$e")
 
-	echo "Temporada: $myTemporada, Capítulo: $myCapitulo"
+	echo "****Temporada: $myTemporada, Capítulo: $myCapitulo"
 
 	CAPITULO_ID=$(existsBDEpisodios "$SERIE_ID" "$myTemporada" "$myCapitulo")
 
