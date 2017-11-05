@@ -2,7 +2,7 @@
 #################################################################################################
 # V A R I A B L E S
 #################################################################################################
-
+FILTROAWK="/home/mhyst/scripts/seriesblanco/filtro.awk"
 SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
 #Current version
 VERSION="0.0.1"
@@ -118,12 +118,15 @@ function loadChapters() {
 	
 	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]{1,3}+/capitulo-[0-9]{1,4}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
 
-	if [[ $temporada > -1 ]]; then
+	#Si hay valores de temporada y capítulo introducidos por argumentos se filtra
+	#a partir de esa temporada y ese capítulo
+	#if [[ $temporada > -1 ]]; then
 		#grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
-		gawk -v var=$temporada -F '[/-]' '$5>=var{print}' /tmp/paso1.2.txt > /tmp/paso1.3.txt
-		rm /tmp/paso1.2.txt
-		mv /tmp/paso1.3.txt /tmp/paso1.2.txt
-	fi
+	#gawk -v var=$temporada -F '[/-]' '$5>=var{print}' /tmp/paso1.2.txt > /tmp/paso1.3.txt
+	awk -v season=$temporada -v chapter=$capitulo -f "$FILTROAWK" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+	rm /tmp/paso1.2.txt
+	mv /tmp/paso1.3.txt /tmp/paso1.2.txt
+	#fi
 	#No tiene sentido aquí filtrar por capítulo porque nos daría todos los números de capítulo que
 	#coincidieran con el proporcionado. Eso en todo caso debería hacerse en el bucle del programa principal
 	# if [[ $capitulo > -1 ]]; then
