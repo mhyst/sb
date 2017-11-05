@@ -4,7 +4,9 @@
 #################################################################################################
 
 SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
-
+#Current version
+VERSION="0.0.1"
+CODENAME="qspopulate"
 
 #################################################################################################
 # Funciones que no se utilizan
@@ -116,16 +118,19 @@ function loadChapters() {
 	
 	egrep -E -o  "/serie/[0-9]{1,6}/temporada-[0-9]{1,3}+/capitulo-[0-9]{1,4}/.*?.html" /tmp/paso1.txt | grep "$serie" > /tmp/paso1.2.txt
 
-	if [[ $temporada > 0 ]]; then
-		grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+	if [[ $temporada > -1 ]]; then
+		#grep "temporada-$temporada" /tmp/paso1.2.txt > /tmp/paso1.3.txt
+		gawk -v var=$temporada -F '[/-]' '$5>=var{print}' /tmp/paso1.2.txt > /tmp/paso1.3.txt
 		rm /tmp/paso1.2.txt
 		mv /tmp/paso1.3.txt /tmp/paso1.2.txt
 	fi
-	if [[ $capitulo > 0 ]]; then
-		grep "capitulo-$capitulo" /tmp/paso1.2.txt > /tmp/paso1.3.txt
-		rm /tmp/paso1.2.txt
-		mv /tmp/paso1.3.txt /tmp/paso1.2.txt	
-	fi
+	#No tiene sentido aquí filtrar por capítulo porque nos daría todos los números de capítulo que
+	#coincidieran con el proporcionado. Eso en todo caso debería hacerse en el bucle del programa principal
+	# if [[ $capitulo > -1 ]]; then
+	# 	gawk -F '[/-]' '$3>$capitulo{print}' /tmp/paso1.2.txt > /tmp/paso1.3.txt
+	# 	rm /tmp/paso1.2.txt
+	#  	mv /tmp/paso1.3.txt /tmp/paso1.2.txt	
+	# fi
 	cat /tmp/paso1.2.txt
 }
 
@@ -224,6 +229,36 @@ function existsBDEnlaces () {
 	fi
 }
 
+function help {
+	echo "$CODENAME $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
+	echo "Rellena la base de datos de qs con datos de la web de sb"
+	echo
+	echo "Modo de empleo: $CODENAME [opción] <cadena de búsqueda>"
+	echo
+	echo " Ejemplos:"
+	echo "	$CODENAME discovery"
+	echo
+	echo "	$CODENAME -t 9 se ha escrito un crimen"
+	echo
+	echo "	$CODENAME -t 1 -c 7 el mentalista"
+	echo
+	echo "	$CODENAME -t 2 -c 2 -s streamcloud the orville"
+	echo
+	echo "Opciones"
+	echo " -t"
+	echo "      Filtrar por temporada."
+	echo
+	echo "Nota: Si filtramos por temporada recabará datos sólo de la temporada proporcionada."
+	echo "      Es decir, que no cuenta de esa temporada hacia adelante."
+	echo
+	echo " -c"
+	echo "      Filtrar por capítulo."
+	echo 
+	echo "Nota: Filtrar por capítulo no tiene sentido, por lo que no se ha implementado esa opción."
+	echo "Esas limitaciones se deben a que el filtrado se hace con grep y expresiones regulares de"
+	echo "para mejorar el rendimiento."
+	echo
+}
 
 ##################################################################################################
 # Funciones base de datos: END
@@ -233,23 +268,69 @@ function existsBDEnlaces () {
 #################################################################################################
 # P R O G R A M A      P R I N C I P A L
 #################################################################################################
+
+TEMP=`getopt -o ht:c: --long "help,temporada:,capitulo:" -- "$@"`
+
+
+
+if [ $? != 0 ]; then help; exit 1; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
+
+
+# Debug
+#echo "$TEMP"
+
+# VER_NO_VISTOS=false
+# VER_VISTOS=false
+# forth_number=0
+# forth_all=false
+# reset=false
+# reset_by=false
+#back=0
+# reset_data=()
+temporada=-1
+capitulo=-1
+# servicio=""
+# limit=false
+# vervistos=false
+# gonext=false
+
+while true; do
+  case "$1" in
+  	-h | --help ) help; exit ;;
+	-t | --temporada ) temporada=$2; shift ;;
+	-c | --capitulo ) capitulo=$2; shift ;;
+	# -s | --servicio ) servicio=$2; shift ;;
+	# -l | --limit ) limit=true ;;
+	# -v ) vervistos=true ;;
+	# -n | --next ) gonext=true ;;
+	# -b | --back ) let back++ ;;
+	# -f | --forth ) let forth_number++ ;;
+	# --forth-by ) forth_number=$2; shift ;;
+	# -a | --forth-all ) forth_all=true ;;
+	# --back-by ) back=$2; shift ;;
+ #    # -v ) VER_VISTOS=true ;;
+	# -r | --reset ) reset=true ;;
+	# # -m | --mreset ) reset_data+=("$2"); shift ;;
+	# # --reset-by ) reset_by=true; bydata=$2; shift ;;
+    * ) break ;;
+  esac
+  shift
+done
+
+if [[ $1 = "--" ]]; then
+	shift
+fi
+
+
 echo "Argumentos: $1 $2 $3 $4 $5 $6 $7 $8 $9"
-# PARM=""
-# for arg in $@; do
-# 	if [[ $1 != "--" ]]; then
-# 		PARM="$PARM$1 "
-# 	fi
-# 	shift
-# done
 
-#PARM=$(trim $PARM)
 
-echo "sbpopulate $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
+echo "$CODENAME $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
 echo "Webscrapper para llenar la base de datos de sbdb"
 echo
-##############################################################################
-# feature1: END
-##############################################################################
 
 #Recuperar los resultados de la búsqueda
 SERIES=$(searchSeries $1 $2 $3 $4 $5 $6 $7 $8 $9)
@@ -296,6 +377,12 @@ if [[ $SERIE_ID == -1 ]]; then
 	echo "Se añadió la serie con el id: $SERIE_ID"
 else
 	echo "La serie existe y tiene el id: $SERIE_ID"
+fi
+
+if [[ $temporada > -1 ]]; then
+	echo "Recabando datos desde la temporada $temporada"
+else
+	echo "Recabando datos de todas las temporadas"
 fi
 
 #AHora le toca al turno a los capítulos de la serie
