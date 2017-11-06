@@ -1,0 +1,64 @@
+#!/bin/bash
+
+function instalado() {
+	#Comprobamos si esta instalado el paquete wget mediante el comando aptitude
+
+	aux=$(aptitude show wget | grep "Estado: instalado")
+	if `echo "$aux" | grep "Estado: instalado" >/dev/null`; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+# llamamos a la funcion
+instalado "sqlite3" &> /dev/null
+
+if [ "$?" = "1" ]; then
+	echo "sqlite3 OK".
+	echo
+else
+	echo "El paquete sqlite3 necesario para el funcionamiento de este script no está instalado"
+	echo "Para instalarlo ejecute el siguiente comando:"
+	echo
+	echo "	apt install sqlite3 -y"
+	echo
+	exit
+fi
+
+if [ ! -f "db.sql" ]; then
+    echo "El archivo db.sql necesario para crear la base de datos no se encuentra en el directorio actual."
+    echo "Vaya al directorio donde tenga sb y vuelva a ejecutar este script."
+fi
+
+
+echo "Se va a crear la base de datos"
+echo "------------------------------"
+echo
+echo "La base de datos se creará en el directorio actual."
+echo "Si no lo quiere crear en este directorio $(pwd), presione CONTROL+C..."
+echo
+echo "Escriba el nombre que quiere que tenga el archivo: "
+read filename
+
+echo
+echo
+echo "¡¡¡Atención!!! Se va a crear la base de datos con el nombre \"$filename\" en siguiente carpeta"
+echo "$(pwd)"
+echo
+echo "Si el archivo ya existe se sobreescribirá."
+echo "¿Desea continuar? (s/n)"
+read res
+
+echo
+if [[ $res == "S" ]] || [[ $res == "s" ]]; then
+	sqlite3 "$filename" < db.sql
+	echo "Base de datos creada correctamente"
+	echo
+	echo "Ahora debe editar los archivos qs y qspopulate"
+	echo "y cambiar la ruta al archivo de la base de datos como sigue: "
+	echo 
+	echo "$(pwd)/$filename"
+else
+	echo "Abortado"
+fi
