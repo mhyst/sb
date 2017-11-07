@@ -75,7 +75,7 @@ function queryEpisodios() {
 	local idserie="$1"
 	local ltemporada="$2"
 
-	if $vervistos || (( $temporada > 0)); then
+	if $vervistos || (( $temporada > -1)); then
 		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $ltemporada"`
 	else
 		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $ltemporada and visto = 0"`
@@ -118,10 +118,29 @@ function queryEnlacesFiltro() {
 	echo "$res"
 }
 
+#ATENCION!!!
+#Las funciones back, forth, reset y forth_all son absolutas. Es decir, que no se les aplican los filtros
+#Una de dos, o las hacemos compatibles con los filtros (esto sería lo más lógico) o creamos métodos nuevos.
+
+function getFiltro() {
+	local sql=""
+
+	if $only; then
+		if [[ $temporada != "-1" ]]; then
+			sql="and temporada $otemporada $temporada"
+		fi
+		if [[ $capitulo != "-1" ]]; then
+			echo "Pasa"
+			sql="$sql and episodio $ocapitulo $episodio"
+		fi
+	fi
+	echo "$sql"
+}
+
 function back() {
 	local idserie="$1"
 
-	local res=`$SQLITE "select max(id) from episodios where idserie=$idserie and visto>0"`
+	local res=`$SQLITE "select max(id) from episodios where idserie=$idserie and visto>0 $(getFiltro)"`
 	if [[ $res != "" ]]; then
 		`$SQLITE "update Episodios set visto=0 where id = $res"`
 	fi
@@ -130,7 +149,7 @@ function back() {
 function forth() {
 	local idserie="$1"
 
-	local res=`$SQLITE "select min(id) from episodios where idserie=$idserie and visto=0"`
+	local res=`$SQLITE "select min(id) from episodios where idserie=$idserie and visto=0 $(getFiltro)"`
 	if [[ $res != "" ]]; then
 		`$SQLITE "update episodios set visto=1 where id = $res"`
 	fi
@@ -139,13 +158,13 @@ function forth() {
 function reset() {
 	local idserie="$1"
 
-	`$SQLITE "update episodios set visto=0 where idserie = $idserie"`
+	`$SQLITE "update episodios set visto=0 where idserie = $idserie $(getFiltro)"`
 }
 
 function forth_all() {
 	local idserie="$1"
 
-	`$SQLITE "update episodios set visto=1 where idserie = $idserie"`
+	`$SQLITE "update episodios set visto=1 where idserie = $idserie $(getFiltro)"`
 }
 
 function parseSerie () {
@@ -217,6 +236,62 @@ function parseEnlace () {
 	echo "$episodio"
 }
 
+function fixTemporada() {
+	local tempo=""
+	local tempn=""
+
+	if [[ $temporada == "-1" ]]; then
+		return
+	fi
+
+	for (( i=0; i<${#temporada}; i++ )); do
+	 	c="${temporada:$i:1}"
+	 	echo "Caracter $1: $c"
+	  	if [[ $c =~ [0-9] ]]; then
+		  	break
+		else
+			tempo="$tempo$c"
+	  	fi
+	done
+	tempn="${temporada:$i}"
+
+	if [[ $tempo = "" ]]; then
+		otemporada="="
+	else
+		otemporada="$tempo"
+	fi
+	temporada="$tempn"
+	#echo "Operador: $tempo / Número: $tempn"
+}
+
+function fixCapitulo() {
+	local cappo=""
+	local capn=""
+
+	if [[ $capitulo == "-1" ]]; then
+		return
+	fi
+	for (( i=0; i<${#capitulo}; i++ )); do
+	 	c="${capitulo:$i:1}"
+	 	echo "Caracter $1: $c"
+	  	if [[ $c =~ [0-9] ]]; then
+		  	break
+		else
+			capo="$capo$c"
+	  	fi
+	done
+	capn="${capitulo:$i}"
+
+	if [[ $capo = "" ]]; then
+		ocapitulo="="
+	else
+		ocapitulo="$capo"
+	fi
+
+	capitulo="$capn"
+	#echo "Operador: $tempo / Número: $tempn"
+}
+
 function help {
 	echo "$CODENAME $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
 	echo "Consulta la base de datos creara con sbpopulate"
@@ -248,7 +323,11 @@ function help {
 	echo "      Mostrar temporadas y episodios ya vistos."
 	echo
 	echo " -l"
-	echo "      Limitar listado de episodios a 10."
+	echo "      Limitar listado de episodios listados en pantalla a 10."
+	echo
+	echo " -o"
+	echo "      Solo marcar o desmarcar episodios como vistos y salir."
+	echo "      Esta opción permite aplicar las opciones -t y -c para marcar o desmarcar la temporada o el episodio indicado, pero sólo con las funciones --reset y --forth-all."
 	echo
 }
 
@@ -256,7 +335,7 @@ function help {
 # P R O G R A M A      P R I N C I P A L
 #################################################################################################
 
-TEMP=`getopt -o ht:c:s:lvnbfr --long "help,temporada:,capitulo:,servicio:,limit,next,back,forth,forth-by:,forth-all,back-by:,reset" -- "$@"`
+TEMP=`getopt -o ht:c:s:lvnbfaro --long "help,temporada:,capitulo:,servicio:,limit,next,back,forth,forth-by:,forth-all,back-by:,reset,only" -- "$@"`
 
 
 
@@ -277,12 +356,15 @@ reset=false
 # reset_by=false
 back=0
 # reset_data=()
-temporada=0
-capitulo=0
+temporada=-1
+otemporada=""
+capitulo=-1
+ocapitulo=""
 servicio=""
 limit=false
 vervistos=false
 gonext=false
+only=false
 
 while true; do
   case "$1" in
@@ -300,6 +382,7 @@ while true; do
 	--back-by ) back=$2; shift ;;
     # -v ) VER_VISTOS=true ;;
 	-r | --reset ) reset=true ;;
+	-o | --only ) only=true ;;
 	# -m | --mreset ) reset_data+=("$2"); shift ;;
 	# --reset-by ) reset_by=true; bydata=$2; shift ;;
     * ) break ;;
@@ -310,6 +393,10 @@ done
 if [[ $1 = "--" ]]; then
 	shift
 fi
+
+#Retiramos el operador si lo hubiera de temporada y capitulo
+fixTemporada
+fixCapitulo
 
 # echo "Parámetros: $temporada $capitulo $servicio"
 # echo "Argumentos: $1 $2 $3 $4 $5 $6 $7 $8 $9"
@@ -327,6 +414,14 @@ echo "$CODENAME $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
 echo "Consulta la base de datos creara con sbpopulate"
 echo
 
+if $only; then
+	if [[ $temporada == -1 ]] && [[ $capitulo == -1 ]]; then
+		echo
+		echo "No tiene sentido activar la opción -o si no se da algún dato más."
+		echo
+		exit
+	fi
+fi
 
 SERIES=$(querySeries "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9")
 
@@ -359,6 +454,7 @@ echo
 #Extraer el nombre de la serie para futuros usos
 SERIE=$(parseIDSerie "${aseries[$CHOSENID]}")
 
+
 #############################
 # Ajustar puntero de vistas
 #############################
@@ -386,11 +482,18 @@ while [[ $forth_number > 0 ]]; do
 done
 unset res
 
+if $only; then
+	echo
+	echo "Se ha activado --only"
+	echo "Se han actualizado los episodios vistos."
+	echo
+	exit
+fi
 
 nombreserie=$(parseSerie "${aseries[$CHOSENID]}")
 echo "Ha escogido $nombreserie"
 
-if [[ $temporada == 0 ]]; then
+if [[ $temporada == -1 ]]; then
 	TEMPORADAS=$(queryTemporadas "$SERIE")
 
 	if [[ $TEMPORADAS = "" ]]; then
@@ -428,7 +531,7 @@ echo "Ha elegido la temporada $TEMPORADA"
 
 echo
 
-if [[ $capitulo == 0 ]]; then
+if [[ $capitulo == -1 ]]; then
 
 	EPISODIOS=$(queryEpisodios "$SERIE" "$TEMPORADA")
 
