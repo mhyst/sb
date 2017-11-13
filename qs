@@ -3,7 +3,7 @@
 # V A R I A B L E S
 #################################################################################################
 
-SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
+SQLITE="sqlite3 /home/mhyst/bin/scripts/sb/sbdb"
 #Nombre del script
 CODENAME="qs"
 #Current version

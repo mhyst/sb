@@ -2,8 +2,8 @@
 #################################################################################################
 # V A R I A B L E S
 #################################################################################################
-SQLITE="sqlite3 /home/mhyst/bin/scripts/seriesblanco/sbdb"
-FILTROAWK="/home/mhyst/bin/scripts/seriesblanco/filtro.awk"
+SQLITE="sqlite3 /home/mhyst/bin/scripts/sb/sbdb"
+FILTROAWK="/home/mhyst/bin/scripts/sb/filtro.awk"
 #Current version
 VERSION="0.0.1"
 CODENAME="qspopulate"
