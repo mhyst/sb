@@ -426,27 +426,34 @@ fi
 SERIES=$(querySeries "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9")
 
 if [[ $SERIES = "" ]]; then
-	echo "No hay series en la base de datos."
+	echo "No hay series en la base de datos que coincidan con esa cadena de búsqueda."
 	echo "Use qspopulate con la url de una serie para rellenarla"
 	exit
 fi
 
 
-echo "Series que coinciden con su cadena de búsqueda: "
-echo
+
 #Dividir series por nueva línea
 readarray -t aseries <<<"$SERIES"
 
-#Recorrer el array resultante "y"
-let i=0
-for t in "${aseries[@]}"; do
-	nombreserie=$(parseSerie "$t")
-	echo "	$i:	$nombreserie"
-	((i++))
-done
 
-LIMITE=$(( ${#aseries[*]} - 1 ))
-CHOSENID=$(userChoice $LIMITE "Seleccione la serie:")
+if [[ ${#aseries[*]} == 1 ]]; then
+	CHOSENID=0
+	echo "El sistema ha devuelto sólo una serie, por lo que se asume esa es que desea."
+else
+	echo "Series que coinciden con su cadena de búsqueda: "
+	echo
+	#Recorrer el array resultante "y"
+	let i=0
+	for t in "${aseries[@]}"; do
+		nombreserie=$(parseSerie "$t")
+		echo "	$i:	$nombreserie"
+		((i++))
+	done
+
+	LIMITE=$(( ${#aseries[*]} - 1 ))
+	CHOSENID=$(userChoice $LIMITE "Seleccione la serie:")
+fi
 
 #echo "El elegido es: ${aseries[$CHOSENID]}"
 echo
@@ -497,14 +504,14 @@ if [[ $temporada == -1 ]]; then
 	TEMPORADAS=$(queryTemporadas "$SERIE")
 
 	if [[ $TEMPORADAS = "" ]]; then
-		echo "No hay temporadas pendientes en esta serie."
+		echo "No hay episodios pendientes en esta serie."
 		echo "Use qspopulate con la url de una serie para rellenarla."
 		echo "O, si ya las ha visto todas y desea volver a hacerlo, invoque de nuevo a qs con la opción -r."
 		exit
 	fi
 
 
-	echo "Temporadas disponibles:"
+	echo "Temporadas pendientes:"
 	echo
 	readarray -t atemporadas <<<"$TEMPORADAS"
 
