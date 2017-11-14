@@ -411,7 +411,7 @@ fixCapitulo
 #PARM=$(trim $PARM)
 
 echo "$CODENAME $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
-echo "Consulta la base de datos creara con sbpopulate"
+echo "Consulta la base de datos creada con sbpopulate para obtener enlaces de tus series."
 echo
 
 if $only; then
