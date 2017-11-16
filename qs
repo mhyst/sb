@@ -55,7 +55,7 @@ function querySeries() {
 
 	search=$(trim $search)
 
-	local res=`$SQLITE "select * from series where titulo like '%$search%'"`
+	local res=`$SQLITE "select * from series where titulo like '%$search%' order by titulo"`
 	echo "$res"
 }
 
