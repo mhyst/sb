@@ -1,0 +1,48 @@
+#!/bin/bash
+
+function help() {
+	echo "qsv"
+	echo
+	echo "Debe proporcionar al menos un argumento, que corresponda con la serie que quiere ver"
+	echo
+}
+
+TEMP=`getopt -o s:e: --long "servicio:,enlace:" -- "$@"`
+
+
+
+if [ $? != 0 ]; then help; exit 1; fi
+
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
+
+
+servicio=""
+enlace=""
+
+while true; do
+  case "$1" in
+  	-h | --help ) help; exit ;;
+	-s | --servicio ) servicio=$2; shift ;;
+	-e | --enlace ) enlace=$2; shift ;;
+	# -m | --mreset ) reset_data+=("$2"); shift ;;
+	# --reset-by ) reset_by=true; bydata=$2; shift ;;
+    * ) break ;;
+  esac
+  shift
+done
+
+if [[ $1 = "--" ]]; then
+	shift
+fi
+
+if [[ $servicio = "" ]]; then
+	servicio="streamcloud"
+fi
+
+qs -n -s "$servicio" $@ | tee qsvsalida
+grep "http://" qsvsalida > qsvsalida2
+enlace=$(cat qsvsalida2)
+firefox "$enlace"
+rm qsvsalida
+rm qsvsalida2
