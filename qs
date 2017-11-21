@@ -130,7 +130,6 @@ function getFiltro() {
 			sql="and temporada $otemporada $temporada"
 		fi
 		if [[ $capitulo != "-1" ]]; then
-			echo "Pasa"
 			sql="$sql and episodio $ocapitulo $episodio"
 		fi
 	fi
@@ -329,13 +328,40 @@ function help {
 	echo "      Solo marcar o desmarcar episodios como vistos y salir."
 	echo "      Esta opción permite aplicar las opciones -t y -c para marcar o desmarcar la temporada o el episodio indicado, pero sólo con las funciones --reset y --forth-all."
 	echo
+	echo " -n"
+	echo "      Ver el siguiente episodio pendiente. Cuando ve una serie con qs, la base de datos se actualiza de forma que se marca el episodio como visto. Esto permite a qs saber cual es el siguiente episodio a ver."
+	echo
+	echo "Opciones del puntero de vistos"
+	echo
+	echo "      La base de datos lleva la cuenta de los episodios que ya ha visto. Con esa información, qs mantiene una especie de puntero que le indica siempre cual es el siguiente episodio a ver de una serie. Pero eso podría no ser suficiente. Las siguientes opciones pueden manipular ese puntero."
+	echo " -b o --back"
+	echo "      Mover el putero de la serie una vez hacia atrás. Pudiendo poner tantas b's como se quiera para mover el puntero tal número de veces."
+	echo
+	echo " -f o --forth"
+	echo "      Mover el putero de la serie una vez hacia adelante. Pudiendo poner tantas f's como se quiera para mover el puntero tal número de veces."
+	echo
+	echo " -a o --forth-all"
+	echo "      Marcar todos los episodios de una serie como vistos."
+	echo
+	echo " -r o --reset"
+	echo "      Marcar todos los episodios de una serie como no vistos."
+	echo
+	echo " -o o --only"
+	echo "      Permite manipular el puntero solo en una temporada. Solo funciona en conjunto con -t."
+	echo
+	echo " -g o --first"
+	echo "      Ir directamente al primer enlace disponible de ese episodio. Funciona también con -s."
+	echo
+	echo " -e o --exit"
+	echo "      Salir una vez se han realizado operaciones del puntero de la serie. Un ejemplo de esto sería si ha empezado a ver un episodio de una serie pero no lo ha terminado. Antes de que se le olvide, puede hacer un -b -e y qs volverá a reproducir el episodio que quiere en la siguiente ocasión."
+	echo
 }
 
 #################################################################################################
 # P R O G R A M A      P R I N C I P A L
 #################################################################################################
 
-TEMP=`getopt -o ht:c:s:lvnbfaro --long "help,temporada:,capitulo:,servicio:,limit,next,back,forth,forth-by:,forth-all,back-by:,reset,only" -- "$@"`
+TEMP=`getopt -o ht:c:s:lvnbfaroge --long "help,temporada:,capitulo:,servicio:,limit,next,back,forth,forth-by:,forth-all,back-by:,reset,only,first,exit" -- "$@"`
 
 
 
@@ -365,6 +391,8 @@ limit=false
 vervistos=false
 gonext=false
 only=false
+first=false #Ir al primer enlace
+salir=false #Salir tras actualizar la base de datos
 
 while true; do
   case "$1" in
@@ -383,6 +411,8 @@ while true; do
     # -v ) VER_VISTOS=true ;;
 	-r | --reset ) reset=true ;;
 	-o | --only ) only=true ;;
+	-g | --first ) first=true ;;
+	-e | --exit ) salir=true ;;
 	# -m | --mreset ) reset_data+=("$2"); shift ;;
 	# --reset-by ) reset_by=true; bydata=$2; shift ;;
     * ) break ;;
@@ -462,6 +492,9 @@ echo
 SERIE=$(parseIDSerie "${aseries[$CHOSENID]}")
 
 
+nombreserie=$(parseSerie "${aseries[$CHOSENID]}")
+echo "Ha escogido $nombreserie"
+
 #############################
 # Ajustar puntero de vistas
 #############################
@@ -497,8 +530,13 @@ if $only; then
 	exit
 fi
 
-nombreserie=$(parseSerie "${aseries[$CHOSENID]}")
-echo "Ha escogido $nombreserie"
+if $salir; then
+	echo
+	echo "Se ha activado --exit"
+	echo "Se han realizado las operaciones solicitadas. Saliendo..."
+	echo
+	exit
+fi
 
 if [[ $temporada == -1 ]]; then
 	TEMPORADAS=$(queryTemporadas "$SERIE")
@@ -612,7 +650,12 @@ for t in "${aenlaces[@]}"; do
 done
 
 LIMITE=$(( ${#aenlaces[*]} - 1 ))
-CHOSENID=$(userChoice $LIMITE "Seleccione el enlace: ")
+
+if $first; then
+	CHOSENID=0
+else
+	CHOSENID=$(userChoice $LIMITE "Seleccione el enlace: ")
+fi
 
 ENLACE=$(parseEnlace "${aenlaces[$CHOSENID]}")
 
