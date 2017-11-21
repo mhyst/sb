@@ -7,7 +7,7 @@ function help() {
 	echo
 }
 
-TEMP=`getopt -o s:e: --long "servicio:,enlace:" -- "$@"`
+TEMP=`getopt -o hs:e: --long "help,servicio:,enlace:" -- "$@"`
 
 
 
