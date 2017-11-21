@@ -7,7 +7,7 @@ function help() {
 	echo
 }
 
-TEMP=`getopt -o hs:e: --long "help,servicio:,enlace:" -- "$@"`
+TEMP=`getopt -o hs:e:j --long "help,servicio:,enlace:,jump" -- "$@"`
 
 
 
@@ -19,12 +19,14 @@ eval set -- "$TEMP"
 
 servicio=""
 enlace=""
+jump=false
 
 while true; do
   case "$1" in
   	-h | --help ) help; exit ;;
 	-s | --servicio ) servicio=$2; shift ;;
 	-e | --enlace ) enlace=$2; shift ;;
+	-j | --jump ) jump=true ;;
 	# -m | --mreset ) reset_data+=("$2"); shift ;;
 	# --reset-by ) reset_by=true; bydata=$2; shift ;;
     * ) break ;;
@@ -40,7 +42,11 @@ if [[ $servicio = "" ]]; then
 	servicio="streamcloud"
 fi
 
-qs -n -s "$servicio" $@ | tee qsvsalida
+if $jump; then
+	qs -n -s "$servicio" -g $@ | tee qsvsalida
+else
+	qs -n -s "$servicio" $@ | tee qsvsalida
+fi
 grep "http://" qsvsalida > qsvsalida2
 enlace=$(cat qsvsalida2)
 firefox "$enlace"
