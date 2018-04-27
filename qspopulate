@@ -188,7 +188,7 @@ function getLink() {
 #Obtener el último ID generado (por una inserción en una tabla)
 function getBDLastID () {
 	local tabla="$1"
-	local ID=`$SQLITE "select max(id) from $tabla"`
+	local ID=`$SQLITE "BEGIN; select max(id) from $tabla; END TRANSACTION"`
 	echo "$ID"
 }
 
@@ -196,7 +196,7 @@ function getBDLastID () {
 function existsBDSeries () {
 	local enlace="$1"
 
-	local res=`$SQLITE "select id from series where enlace = \"$enlace\""`
+	local res=`$SQLITE "BEGIN; select id from series where enlace = \"$enlace\"; END TRANSACTION"`
 	if [[ $res = "" ]]; then
 		echo "-1"
 	else
@@ -210,7 +210,7 @@ function existsBDEpisodios () {
 	local temporada="$2"
 	local episodio="$3"
 
-	local res=`$SQLITE "select id from episodios where idserie = $idserie and temporada = $temporada and episodio = $episodio"`
+	local res=`$SQLITE "BEGIN; select id from episodios where idserie = $idserie and temporada = $temporada and episodio = $episodio; END TRANSACTION"`
 	if [[ $res = "" ]]; then
 		echo "-1"
 	else
@@ -224,7 +224,7 @@ function existsBDEnlaces () {
 	local idepisodio="$2"
 	local enlace="$3"
 
-	local res=`$SQLITE "select id from enlaces where idserie = $idserie and idepisodio = $idepisodio and enlace=\"$enlace\""`
+	local res=`$SQLITE "BEGIN; select id from enlaces where idserie = $idserie and idepisodio = $idepisodio and enlace=\"$enlace\"; END TRANSACTION"`
 	if [[ $res = "" ]]; then
 		echo "-1"
 	else
@@ -373,7 +373,7 @@ if [[ $SERIE_ID == -1 ]]; then
 		read titulo	
 	done
 
-	`$SQLITE "insert into series (titulo, enlace) values (\"$titulo\",\"$SERIE\");"`
+	`$SQLITE "BEGIN; insert into series (titulo, enlace) values (\"$titulo\",\"$SERIE\"); END TRANSACTION"`
 	SERIE_ID=$(getBDLastID "series")	
 	echo "Se añadió la serie con el id: $SERIE_ID"
 else
@@ -408,7 +408,7 @@ for e in "${achapters[@]}"; do
 	CAPITULO_ID=$(existsBDEpisodios "$SERIE_ID" "$myTemporada" "$myCapitulo")
 
 	if [[ $CAPITULO_ID == -1 ]]; then
-		`$SQLITE "insert into episodios (idserie, temporada, episodio, visto) values ($SERIE_ID, $myTemporada, $myCapitulo, 0)"`
+		`$SQLITE "BEGIN; insert into episodios (idserie, temporada, episodio, visto) values ($SERIE_ID, $myTemporada, $myCapitulo, 0); END TRANSACTION"`
 		CAPITULO_ID=$(getBDLastID "episodios")
 
 		echo "Se añadió el episodio con el id: $CAPITULO_ID"
@@ -461,7 +461,7 @@ for e in "${achapters[@]}"; do
 
 			LINK_ID=$(existsBDEnlaces "$SERIE_ID" "$CAPITULO_ID" "$LINK")
 			if [[ $LINK_ID == "-1" ]]; then
-				`$SQLITE "insert into enlaces (idserie, idepisodio, enlace, url) values ($SERIE_ID, $CAPITULO_ID, \"$LINK\", \"$myservice\")"`
+				`$SQLITE "BEGIN; insert into enlaces (idserie, idepisodio, enlace, url) values ($SERIE_ID, $CAPITULO_ID, \"$LINK\", \"$myservice\"); END TRANSACTION"`
 				LINK_ID=$(getBDLastID "enlaces")
 				echo ">>>Enlace: $LINK_ID - Temporada: $myTemporada - Capítulo: $myCapitulo"
 			else

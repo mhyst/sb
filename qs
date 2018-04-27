@@ -55,7 +55,7 @@ function querySeries() {
 
 	search=$(trim $search)
 
-	local res=`$SQLITE "select * from series where titulo like '%$search%' order by titulo"`
+	local res=`$SQLITE "BEGIN; select * from series where titulo like '%$search%' order by titulo; END TRANSACTION"`
 	echo "$res"
 }
 
@@ -63,9 +63,9 @@ function queryTemporadas() {
 	local idserie="$1"
 
 	if $vervistos; then
-		local res=`$SQLITE "select distinct(temporada) from episodios where idserie = $idserie"`
+		local res=`$SQLITE "BEGIN; select distinct(temporada) from episodios where idserie = $idserie; END TRANSACTION"`
 	else
-		local res=`$SQLITE "select distinct(temporada) from episodios where idserie = $idserie and visto = 0"`
+		local res=`$SQLITE "BEGIN; select distinct(temporada) from episodios where idserie = $idserie and visto = 0; END TRANSACTION"`
 	fi
 
 	echo "$res"
@@ -76,9 +76,9 @@ function queryEpisodios() {
 	local ltemporada="$2"
 
 	if $vervistos || (( $temporada > -1)); then
-		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $ltemporada"`
+		local res=`$SQLITE "BEGIN; select * from episodios where idserie = $idserie and temporada = $ltemporada; END TRANSACTION"`
 	else
-		local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $ltemporada and visto = 0"`
+		local res=`$SQLITE "BEGIN; select * from episodios where idserie = $idserie and temporada = $ltemporada and visto = 0; END TRANSACTION"`
 	fi
 	echo "$res"
 }
@@ -89,14 +89,14 @@ function queryEpisodio() {
 	local episodio="$3"
 
 	#echo "SQL=select * from episodios where idserie = $idserie and temporada = $temporada and episodio = $episodio" > /dev/tty
-	local res=`$SQLITE "select * from episodios where idserie = $idserie and temporada = $temporada and episodio = $episodio"`
+	local res=`$SQLITE "BEGIN; select * from episodios where idserie = $idserie and temporada = $temporada and episodio = $episodio; END TRANSACTION"`
 	echo "$res"
 }
 
 function setVisto() {
 	local idepisodio="$1"
 
-	local res=`$SQLITE "update episodios set visto=visto+1 where id = $idepisodio"`
+	local res=`$SQLITE "BEGIN; update episodios set visto=visto+1 where id = $idepisodio; END TRANSACTION"`
 	echo "$res"	
 }
 
@@ -104,7 +104,7 @@ function queryEnlaces() {
 	local idserie="$1"
 	local idepisodio="$2"
 
-	local res=`$SQLITE "select * from enlaces where idserie = $idserie and idepisodio = $idepisodio"`
+	local res=`$SQLITE "BEGIN; select * from enlaces where idserie = $idserie and idepisodio = $idepisodio; END TRANSACTION"`
 	echo "$res"
 }
 
@@ -114,7 +114,7 @@ function queryEnlacesFiltro() {
 	local servicio="$3"
 
 	#echo "select * from enlaces where idserie = $idserie and idepisodio = $idepisodio and url like '%$servicio%'" > /dev/tty
-	local res=`$SQLITE "select * from enlaces where idserie = $idserie and idepisodio = $idepisodio and url like '%$servicio%'"`
+	local res=`$SQLITE "BEGIN; select * from enlaces where idserie = $idserie and idepisodio = $idepisodio and url like '%$servicio%'; END TRANSACTION"`
 	echo "$res"
 }
 
@@ -139,31 +139,31 @@ function getFiltro() {
 function back() {
 	local idserie="$1"
 
-	local res=`$SQLITE "select max(id) from episodios where idserie=$idserie and visto>0 $(getFiltro)"`
+	local res=`$SQLITE "BEGIN; select max(id) from episodios where idserie=$idserie and visto>0 $(getFiltro); END TRANSACTION"`
 	if [[ $res != "" ]]; then
-		`$SQLITE "update Episodios set visto=0 where id = $res"`
+		`$SQLITE "BEGIN; update Episodios set visto=0 where id = $res; END TRANSACTION"`
 	fi
 }
 
 function forth() {
 	local idserie="$1"
 
-	local res=`$SQLITE "select min(id) from episodios where idserie=$idserie and visto=0 $(getFiltro)"`
+	local res=`$SQLITE "BEGIN; select min(id) from episodios where idserie=$idserie and visto=0 $(getFiltro); END TRANSACTION"`
 	if [[ $res != "" ]]; then
-		`$SQLITE "update episodios set visto=1 where id = $res"`
+		`$SQLITE "BEGIN; update episodios set visto=1 where id = $res; END TRANSACTION"`
 	fi
 }
 
 function reset() {
 	local idserie="$1"
 
-	`$SQLITE "update episodios set visto=0 where idserie = $idserie $(getFiltro)"`
+	`$SQLITE "BEGIN; update episodios set visto=0 where idserie = $idserie $(getFiltro); END TRANSACTION"`
 }
 
 function forth_all() {
 	local idserie="$1"
 
-	`$SQLITE "update episodios set visto=1 where idserie = $idserie $(getFiltro)"`
+	`$SQLITE "BEGIN; update episodios set visto=1 where idserie = $idserie $(getFiltro); END TRANSACTION"`
 }
 
 function parseSerie () {
@@ -616,6 +616,7 @@ if [[ $capitulo == -1 ]]; then
 	EPISODIO="${aepisodios[$CHOSENID]}"
 	IDEPISODIO=$(parseIDEpisodio "$EPISODIO")
 else
+	echo "Episodio: $capitulo"
 	EPISODIO=$(queryEpisodio "$SERIE" "$temporada" "$capitulo")
 	echo "$EPISODIO"
 	IDEPISODIO=$(parseIDEpisodio "$EPISODIO")
