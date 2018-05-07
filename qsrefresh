@@ -1,0 +1,79 @@
+#!/bin/bash
+#Refrescar base de datos de qs
+
+
+SQLITE="sqlite3 /home/mhyst/bin/scripts/sb/sbdb"
+
+##################################################################################################
+# Funciones base de datos: BEGIN
+#-------------------------------------------------------------------------------------------------
+# Todas ellas contendrán BD en su nombre
+##################################################################################################
+
+#Obtener de las series existentes el id y su enlace
+function getDBSeries () {
+
+	local res=`$SQLITE "BEGIN; select id,titulo,enlace from series; END TRANSACTION"`
+	if [[ $res = "" ]]; then
+		echo "-1"
+	else
+		echo "$res"
+	fi
+}
+
+#Actualizar la serie
+function callQsPopulate() {
+	local entrada="$1"
+
+	oIFS=$IFS
+	IFS='|' read -r -a array <<< "$entrada"
+
+	local idserie="${array[0]}"
+	local titulo="${array[1]}"
+	local enlace="${array[2]}"
+	IFS=$oIFS
+
+	echo -n "> $titulo "
+	local temporada=`$SQLITE "BEGIN; select max(temporada) from episodios where idserie=$idserie; END TRANSACTION"`
+	if [[ "$temporada" == "" ]]; then
+		echo "ERROR: No se pudo obtener la última temporada de la serie"
+		return 1;
+	fi
+	local episodio=`$SQLITE "BEGIN; select max(episodio) from episodios where idserie=$idserie and temporada=$temporada; END TRANSACTION"`
+	if [[ "$episodio" == "" ]]; then
+		echo "ERROR: No se pudo obtener el último episodio de la serie"
+		return 2;
+	fi
+
+	mkdir /tmp/qsrefresh 2> /dev/null
+	echo -n " T: $temporada / E: $episodio. "
+	echo -n "Actualizando..."
+	qspopulate -t $temporada -c $episodio -u "$enlace" > "/tmp/qsrefresh/$titulo" 2> "/tmp/qsrefresh/$titulo.err"
+	echo "Hecho!"
+
+}
+
+series=$(getDBSeries)
+
+if [[ $series == -1 ]]; then
+	echo "ERROR: No se ha podido recuperar las series de la base de datos"
+	exit 3
+fi
+
+#Dividir series por nueva línea
+readarray -t aseries <<< "$series"
+
+echo "Actualizador de series de qs"
+echo "----------------------------------------------------------------------------"
+echo
+#Recorrer el array resultante "y"
+let i=0
+for entrada in "${aseries[@]}"; do
+	
+	callQsPopulate "$entrada"
+
+	((i++))
+done
+
+echo "-----------------------------------------------------------------------------"
+echo "Actualización completada!"

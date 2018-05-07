@@ -49,6 +49,6 @@ else
 fi
 grep "http://" qsvsalida > qsvsalida2
 enlace=$(cat qsvsalida2)
-firefox "$enlace"
+mpv -fs "$enlace"
 rm qsvsalida
 rm qsvsalida2

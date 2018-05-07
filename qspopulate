@@ -270,7 +270,7 @@ function help {
 # P R O G R A M A      P R I N C I P A L
 #################################################################################################
 
-TEMP=`getopt -o ht:c: --long "help,temporada:,capitulo:" -- "$@"`
+TEMP=`getopt -o ht:c:u: --long "help,temporada:,capitulo:,url:" -- "$@"`
 
 
 
@@ -293,6 +293,7 @@ eval set -- "$TEMP"
 # reset_data=()
 temporada=-1
 capitulo=-1
+url=""
 # servicio=""
 # limit=false
 # vervistos=false
@@ -303,6 +304,7 @@ while true; do
   	-h | --help ) help; exit ;;
 	-t | --temporada ) temporada=$2; shift ;;
 	-c | --capitulo ) capitulo=$2; shift ;;
+	-u | --url ) url="$2"; shift ;;
 	# -s | --servicio ) servicio=$2; shift ;;
 	# -l | --limit ) limit=true ;;
 	# -v ) vervistos=true ;;
@@ -333,34 +335,48 @@ echo "$CODENAME $VERSION - Copyleft (GPL v3) Julio Serrano 2017"
 echo "Webscrapper para llenar la base de datos de sbdb"
 echo
 
-#Recuperar los resultados de la búsqueda
-SERIES=$(searchSeries $1 $2 $3 $4 $5 $6 $7 $8 $9)
+if [[ "$url" == "" ]]; then
 
-if [[ $SERIES = "" ]]; then
-	echo "No se ha encontrado ninguna serie"
-	exit
+	#Recuperar los resultados de la búsqueda
+	SERIES=$(searchSeries $1 $2 $3 $4 $5 $6 $7 $8 $9)
+
+	if [[ $SERIES = "" ]]; then
+		echo "No se ha encontrado ninguna serie"
+		exit
+	fi
+
+	#Dividir series por nueva línea
+	readarray -t aseries <<<"$SERIES"
+
+	#Recorrer el array resultante "y"
+	let i=0
+	for t in "${aseries[@]}"; do
+		echo "$i: $t"
+		((i++))
+	done
+
+	LIMITE=$(( ${#aseries[*]} - 1 ))
+	CHOSENID=$(userChoice $LIMITE)
+
+else
+
+
+
+	declare -a aseries
+
+	CHOSENID=0
+	aseries[CHOSENID]="$url"
+
 fi
 
-#Dividir series por nueva línea
-readarray -t aseries <<<"$SERIES"
-
-#Recorrer el array resultante "y"
-let i=0
-for t in "${aseries[@]}"; do
-	echo "$i: $t"
-	((i++))
-done
-
-LIMITE=$(( ${#aseries[*]} - 1 ))
-CHOSENID=$(userChoice $LIMITE)
-
-#echo "El elegido es: ${aseries[$CHOSENID]}"
+echo "El elegido es: ${aseries[$CHOSENID]}"
 echo
 
 #Extraer el nombre de la serie para futuros usos
 SERIE=$(getSerie "${aseries[$CHOSENID]}")
+ENLACE="${aseries[$CHOSENID]}"
 
-SERIE_ID=$(existsBDSeries "$SERIE")
+SERIE_ID=$(existsBDSeries "$ENLACE")
 if [[ $SERIE_ID == -1 ]]; then
 	echo "La serie no existe. Nos disponemos a insertarla"
 
@@ -373,7 +389,7 @@ if [[ $SERIE_ID == -1 ]]; then
 		read titulo	
 	done
 
-	`$SQLITE "BEGIN; insert into series (titulo, enlace) values (\"$titulo\",\"$SERIE\"); END TRANSACTION"`
+	`$SQLITE "BEGIN; insert into series (titulo, enlace) values (\"$titulo\",\"$ENLACE\"); END TRANSACTION"`
 	SERIE_ID=$(getBDLastID "series")	
 	echo "Se añadió la serie con el id: $SERIE_ID"
 else
