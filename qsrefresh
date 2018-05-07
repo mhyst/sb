@@ -48,7 +48,12 @@ function callQsPopulate() {
 	mkdir /tmp/qsrefresh 2> /dev/null
 	echo -n " T: $temporada / E: $episodio. "
 	echo -n "Actualizando..."
+
+	start=`date +%s`
 	qspopulate -t $temporada -c $episodio -u "$enlace" > "/tmp/qsrefresh/$titulo" 2> "/tmp/qsrefresh/$titulo.err"
+	end=`date +%s`
+	duracion=$((end-start))
+	echo -n " Duración: $duracion segs. - "
 	echo "Hecho!"
 
 }

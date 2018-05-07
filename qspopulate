@@ -146,6 +146,15 @@ function loadChapterLinks() {
 	#grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
 }
 
+function loadChapterLinks2() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	#grep -Po '<a href="/enlace.*?" target="_blank">' /tmp/paso2.txt
+	grep -Po '<a href=".*?" target="_blank">' /tmp/paso2.txt
+}
+
 function loadChapterServices() {
 	local url=$1
 
@@ -438,22 +447,53 @@ for e in "${achapters[@]}"; do
 	#Nos preparamos para recorrer los enlaces
 
 	if [[ $CHAPTERLINKS = "" ]]; then
-		echo "No se han encontrado enlaces para el episodio seleccionado"
-		continue
+		CHAPTERLINKS=$(loadChapterLinks2 "$e")
+
+		if [[ $CHAPTERLINKS = "" ]]; then
+			echo "No se han encontrado enlaces para el episodio seleccionado"
+			continue
+		fi
 	fi
 
 	if [[ $CHAPTERSERVICES = "" ]]; then
-		echo "No se han encontrado enlaces para el episodio seleccionado"
+		echo "No se han encontrado enlaces para el episodio seleccionado."
 		continue
 	fi
 	#Dividir series por nueva línea
 	readarray -t alinks <<<"$CHAPTERLINKS"
 	readarray -t aservices <<<"$CHAPTERSERVICES"
 
+	let offset=0
+	linksfinal=false
 	if [[ "${#alinks[*]}" != "${#aservices[*]}" ]]; then
 		echo "El número de enlaces no se corresponde con el número de servicios"
 		echo "y contiene ${#alinks[*]} mientras que x contiene ${#aservices[*]}"
-		continue
+		echo "Se intentará compensar"
+		(( offset=${#alinks[*]}-${#aservices[*]} ))
+
+		echo ">>> offset $offset"
+		echo ">>> alinks size ${#alinks[@]}"
+		declare -a newalinks
+		let k=0
+		for enaux in "${alinks[@]}"; do
+			if [[ $offset > 0 ]]; then
+				(( offset-- ))
+				continue
+			fi
+			newalinks[k]="$enaux"
+			(( k++ ))
+		done
+
+		alinks=("${newalinks[@]}")
+		echo ">>> alinks size again ${#alinks[@]}"
+
+		linkfinal=true
+		unset newalinks
+		if [[ "${#alinks[*]}" != "${#aservices[*]}" ]]; then
+			echo "El número de enlaces no se corresponde con el número de servicios"
+			echo "y contiene ${#alinks[*]} mientras que x contiene ${#aservices[*]}"
+			continue
+		fi
 	fi
 
 	#Recorrer el array resultante "y"
@@ -461,17 +501,31 @@ for e in "${achapters[@]}"; do
 	for t in "${alinks[@]}"; do
 		mylink=$(parseLink "$t")
 		myservice=$(parseService "${aservices[j]}")
-		if [[ ${myservice,,} == ${servicio,,}* ]]; then
-			echo "$j: $mylink / $myservice"
 
+		# En algunos casos, aparece directamente el enlace a los servicios de streaming
+		# en lugar del /enlace/...
+		# En esos casos le damos un uso distinto
+		if [[ "${mylink:0:1}" != "/" ]]; then
+
+			readarray -t firstlink <<< "$mylink"
+			if [[ ${#firstlink[@]} > 1 ]]; then
+				(( lastlineindex=${#firstlink[@]}-1 ))
+				echo ">>> lastlineindex $lastlineindex"
+				mylink="${firstlink[$lastlineindex]}"
+				echo "<<<<< $mylink >>>>"
+			fi
+			echo "$j: $mylink"
+
+			LINK="$mylink"
+			myservice="$mylink"
 			# Recuperamos el enlace final
 
-			LINK=$(getLink $(parseLink "${alinks[j]}"))
+			# LINK=$(getLink $(parseLink "${alinks[j]}"))
 
-			if [[ $LINK = "" ]]; then
-				echo "Fallo al obtener el enlace"
-				continue
-			fi
+			# if [[ $LINK = "" ]]; then
+			# 	echo "Fallo al obtener el enlace"
+			# 	continue
+			# fi
 
 			echo "El enlace es: $LINK"
 
@@ -483,7 +537,30 @@ for e in "${achapters[@]}"; do
 			else
 				echo "Enlace: $LINK_ID - Temporada: $myTemporada - Capítulo: $myCapitulo"
 			fi
+		else
+			if [[ ${myservice,,} == ${servicio,,}* ]]; then
+				echo "$j: $mylink / $myservice"
 
+				# Recuperamos el enlace final
+
+				LINK=$(getLink $(parseLink "${alinks[j]}"))
+
+				if [[ $LINK = "" ]]; then
+					echo "Fallo al obtener el enlace"
+					continue
+				fi
+
+				echo "El enlace es: $LINK"
+
+				LINK_ID=$(existsBDEnlaces "$SERIE_ID" "$CAPITULO_ID" "$LINK")
+				if [[ $LINK_ID == "-1" ]]; then
+					`$SQLITE "BEGIN; insert into enlaces (idserie, idepisodio, enlace, url) values ($SERIE_ID, $CAPITULO_ID, \"$LINK\", \"$myservice\"); END TRANSACTION"`
+					LINK_ID=$(getBDLastID "enlaces")
+					echo ">>>Enlace: $LINK_ID - Temporada: $myTemporada - Capítulo: $myCapitulo"
+				else
+					echo "Enlace: $LINK_ID - Temporada: $myTemporada - Capítulo: $myCapitulo"
+				fi
+			fi
 		fi
 		((j++))
 	done	
