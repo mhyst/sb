@@ -102,6 +102,15 @@ function loadChapterLinks() {
 	#grep -Po 'href=".*?"' /tmp/paso2.2.txt | sed 's/\(href="\|"\)//g'
 }
 
+function loadChapterLinks2() {
+	local url=$1
+
+	curl "https://seriesblanco.com/$url" | tr -d '\n' > /tmp/paso2.txt 2> /tmp/paso2.dbg
+
+	#grep -Po '<a href="/enlace.*?" target="_blank">' /tmp/paso2.txt
+	grep -Po '<a href=".*?" target="_blank">' /tmp/paso2.txt
+}
+
 function loadChapterServices() {
 	local url=$1
 
@@ -303,22 +312,53 @@ CHAPTERSERVICES=$(loadChapterServices "${y[$CHOSENID]}")
 unset y
 
 if [[ $CHAPTERLINKS = "" ]]; then
-	echo "No se han encontrado enlaces para el episodio seleccionado"
-	exit
+	CHAPTERLINKS=$(loadChapterLinks2 "$e")
+
+	if [[ $CHAPTERLINKS = "" ]]; then
+		echo "No se han encontrado enlaces para el episodio seleccionado"
+		continue
+	fi
 fi
 
 if [[ $CHAPTERSERVICES = "" ]]; then
 	echo "No se han encontrado enlaces para el episodio seleccionado"
 	exit
 fi
+
 #Dividir series por nueva línea
 readarray -t y <<<"$CHAPTERLINKS"
 readarray -t x <<<"$CHAPTERSERVICES"
 
 if [[ "${#y[*]}" != "${#x[*]}" ]]; then
 	echo "El número de enlaces no se corresponde con el número de servicios"
-	echo "y contiene ${#y[*]} mientras que x contiene ${#x[*]}"
-	exit
+	echo "y contiene ${#y[*]} mientras que x contiene ${#x[*]}"	
+
+	echo "Se intentará compensar"
+	(( offset=${#y[*]}-${#x[*]} ))
+
+	echo ">>> offset $offset"
+	echo ">>> alinks size ${#y[@]}"
+	declare -a newalinks
+	let k=0
+	for enaux in "${y[@]}"; do
+		if [[ $offset > 0 ]]; then
+			(( offset-- ))
+			continue
+		fi
+		newalinks[k]="$enaux"
+		(( k++ ))
+	done
+
+	alinks=("${newalinks[@]}")
+	echo ">>> alinks size again ${#y[@]}"
+
+	unset newalinks
+	if [[ "${#y[*]}" != "${#x[*]}" ]]; then
+		echo "El número de enlaces no se corresponde con el número de servicios"
+		echo "y contiene ${#y[*]} mientras que x contiene ${#x[*]}"
+		continue
+	fi
+
 fi
 
 #Recorrer el array resultante "y"
@@ -326,8 +366,27 @@ let i=0
 for t in "${y[@]}"; do
 	mylink=$(parseLink "$t")
 	myservice=$(parseService "${x[i]}")
-	if [[ ${myservice,,} == ${servicio,,}* ]]; then
-		echo "$i: $mylink / $myservice"
+
+	# En algunos casos, aparece directamente el enlace a los servicios de streaming
+	# en lugar del /enlace/...
+	# En esos casos le damos un uso distinto
+	if [[ "${mylink:0:1}" != "/" ]]; then
+
+		readarray -t firstlink <<< "$mylink"
+		if [[ ${#firstlink[@]} > 1 ]]; then
+			(( lastlineindex=${#firstlink[@]}-1 ))
+			echo ">>> lastlineindex $lastlineindex"
+			mylink="${firstlink[$lastlineindex]}"
+			echo "<<<<< $mylink >>>>"
+		fi
+		echo "$j: $mylink"
+
+		LINK="$mylink"
+		myservice="$mylink"
+	else
+		if [[ ${myservice,,} == ${servicio,,}* ]]; then
+			echo "$i: $mylink / $myservice"
+		fi
 	fi
 	((i++))
 done

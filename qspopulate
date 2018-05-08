@@ -487,7 +487,6 @@ for e in "${achapters[@]}"; do
 		alinks=("${newalinks[@]}")
 		echo ">>> alinks size again ${#alinks[@]}"
 
-		linkfinal=true
 		unset newalinks
 		if [[ "${#alinks[*]}" != "${#aservices[*]}" ]]; then
 			echo "El número de enlaces no se corresponde con el número de servicios"
