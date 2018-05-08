@@ -378,11 +378,14 @@ for t in "${y[@]}"; do
 			echo ">>> lastlineindex $lastlineindex"
 			mylink="${firstlink[$lastlineindex]}"
 			echo "<<<<< $mylink >>>>"
+			y[$i]="$mylink"
 		fi
-		echo "$j: $mylink"
 
-		LINK="$mylink"
 		myservice="$mylink"
+
+		if [[ ${myservice} == *{$servicio}* ]]; then
+			echo "$j: $mylink"		
+		fi
 	else
 		if [[ ${myservice,,} == ${servicio,,}* ]]; then
 			echo "$i: $mylink / $myservice"
