@@ -217,7 +217,7 @@ function parseServicio () {
 	oIFS=$IFS
 	IFS='|' read -r -a array <<< "$chain"
 
-	local episodio="${array[4]::-4}"
+	local episodio="${array[4]}"
 	IFS=$oIFS
 
 	echo "$episodio"

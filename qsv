@@ -47,7 +47,7 @@ if $jump; then
 else
 	qs -n -s "$servicio" $@ | tee qsvsalida
 fi
-grep "http://" qsvsalida > qsvsalida2
+grep -E "^http://" qsvsalida > qsvsalida2
 enlace=$(cat qsvsalida2)
 mpv -fs "$enlace"
 rm qsvsalida
